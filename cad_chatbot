@@ -1,0 +1,33 @@
+import tkinter as tk
+from tkinter import messagebox
+def create_line():
+    start_x = int(tk.simpledialog.askstring("直線", "始点の X 座標を入力してください。"))
+    start_y = int(tk.simpledialog.askstring("直線", "始点の Y 座標を入力してください。"))
+    end_x = int(tk.simpledialog.askstring("直線", "終点の X 座標を入力してください。"))
+    end_y = int(tk.simpledialog.askstring("直線", "終点の Y 座標を入力してください。"))
+    canvas.create_line(start_x, start_y, end_x, end_y, width=2)
+def create_circle():
+    center_x = int(tk.simpledialog.askstring("円", "中心の X 座標を入力してください。"))
+    center_y = int(tk.simpledialog.askstring("円", "中心の Y 座標を入力してください。"))
+    radius = int(tk.simpledialog.askstring("円", "半径を入力してください。"))
+    x1 = center_x - radius
+    y1 = center_y - radius
+    x2 = center_x + radius
+    y2 = center_y + radius
+    canvas.create_oval(x1, y1, x2, y2, width=2, outline="red")
+def process_user_input():
+    user_input = tk.simpledialog.askstring("CAD", "何をしましょうか？")
+    has_line = "直線" in user_input
+    has_circle = "円" in user_input
+    if has_line:
+        create_line()
+    elif has_circle:
+        create_circle()
+    else:
+        tk.messagebox.showerror("エラー", "そのような操作はできません。")root = tk.Tk()
+root.title("CAD")
+canvas = tk.Canvas(root, width=400, height=400)
+canvas.pack()
+button = tk.Button(root, text="操作を入力", command=process_user_input)
+button.pack()
+root.mainloop()

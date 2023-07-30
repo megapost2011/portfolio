@@ -1,0 +1,21 @@
+Sub DrawLineByAngleAndLength()
+    Dim StartX As Integer
+    Dim StartY As Integer
+    Dim Angle As Double
+    Dim Length As Double
+    Dim EndX As Integer
+    Dim EndY As Integer
+    ' 始点の座標の入力を求める
+    StartX = InputBox("始点の X 座標を入力してください")
+    StartY = InputBox("始点の Y 座標を入力してください")
+    ' 角度と長さの入力を求める
+    Angle = InputBox("角度を度数法で入力してください（0～360）")
+    Length = InputBox("長さを入力してください")
+    ' 終点の座標の計算
+    EndX = StartX + Length * Cos(Angle * 3.14159 / 180)
+    EndY = StartY + Length * Sin(Angle * 3.14159 / 180)
+    ' 直線の描画
+    With ActiveSheet.Shapes.AddLine(StartX, StartY, EndX, EndY)
+        .Line.Weight = 2 ' 線の太さを指定
+    End With
+End Sub

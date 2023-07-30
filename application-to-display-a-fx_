@@ -1,0 +1,22 @@
+import pandas as pd
+import yfinance as yf
+import datetime as dtimport plotly.graph_objects as go
+from plotly.subplots import make_subplots
+jpy = yf.download(tickers=input("ここでは１通貨あたりの円の相場を表示します。通貨ペ
+ア の 左 側 を 入 力 し て く だ さ い 。 例 え ば ポ ン ド (GBP) と 円 (JPY) な ら 半 角 大 文 字 で
+GBPJPY=X と入力します。") , 
+                  start = input("西暦と月日を入力してください。例えば 2023 年 1 月２
+日ならば半角で 2023-1-02 と入力してください。２０２３年１月２日から今日までのチャー
+トを表示します。") , 
+                  end=dt.datetime.today(), 
+                  interval=input("時間足を入力してください。例えば、５分足なら半角で
+5m、１時間足なら半角で 1h、１日足なら 1d、１週間足なら半角で 1w、１か月足なら半角で
+1mo です。")
+fig = go.Figure(
+                data=[go.Candlestick(
+                    x = jpy.index,
+                    open = jpy['Open'],
+                    high = jpy['High'],
+                    low = jpy['Low'],
+                    close = jpy['Adj Close'])])
+fig.show()

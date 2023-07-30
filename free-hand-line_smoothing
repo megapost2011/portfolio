@@ -1,0 +1,17 @@
+import numpy as np
+import matplotlib.pyplot as plt
+# 画像ファイルの読み込み（）内はファイルのディレクトリのパス
+img = plt.imread('C:/Users/User/Desktop/test.png')
+# 画像をグレースケールに変換
+gray = np.mean(img, axis=2)
+# フリーハンドで描いた曲線の座標を取得points = np.array(np.nonzero(gray)).T
+# 最小二乗法による平滑化
+order = 6
+x = points[:, 0]
+y = points[:, 1]
+coeffs = np.polyfit(x, y, order)
+poly = np.poly1d(coeffs)
+new_y = poly(x)
+# 平滑化した曲線をプロット
+plt.plot(x, new_y, 'r-')
+plt.show()

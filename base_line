@@ -1,0 +1,54 @@
+### 通り芯作成アプリソースコード　###
+import tkinter as tk
+import matplotlib.pyplot as plt
+def draw_balloon_and_crosshairs():
+    dialog = tk.Tk()
+    dialog.title("Coordinate Input")   
+    x_label = tk.Label(dialog, text="X:")
+    x_label.grid(row=0, column=0, padx=5, pady=5)   
+    x_entry = tk.Entry(dialog)
+    x_entry.grid(row=0, column=1, padx=5, pady=5)  
+    y_label = tk.Label(dialog, text="Y:")
+    y_label.grid(row=1, column=0, padx=5, pady=5)  
+    y_entry = tk.Entry(dialog)
+    y_entry.grid(row=1, column=1, padx=5, pady=5)  
+    points = []
+    
+    def add_point():
+        x = float(x_entry.get())
+        y = float(y_entry.get())
+        points.append((x, y))       
+        x_entry.delete(0, tk.END)
+        y_entry.delete(0, tk.END)
+    
+    def plot_points():
+        dialog.destroy()      
+        x_coordinates = set()
+        y_coordinates = set()        # X 座標と Y 座標を分けてセットに追加する
+        for x, y in points:
+            x_coordinates.add(x)
+            y_coordinates.add(y)
+        balloon_counter = 1
+        # バルーンを描く
+        for y in y_coordinates:
+            for x in x_coordinates:
+                plt.plot(x, y, 'o', label=f'X{balloon_counter}')
+                balloon_counter += 1
+        # X の通り芯を描く
+        for y in y_coordinates:
+            plt.axhline(y, color='red', linestyle='--')
+        # Y の通り芯を描く
+        for x in x_coordinates:
+            plt.axvline(x, color='blue', linestyle='--')
+        plt.xlabel('X')
+        plt.ylabel('Y')
+        plt.legend()
+        plt.grid(True)
+        plt.show()
+    add_button = tk.Button(dialog, text="Add Point", command=add_point)
+    add_button.grid(row=2, column=0, padx=5, pady=5) 
+    plot_button = tk.Button(dialog, text="Plot Points", command=plot_points)
+    plot_button.grid(row=2, column=1, padx=5, pady=5)
+    
+    dialog.mainloop()
+draw_balloon_and_crosshairs()

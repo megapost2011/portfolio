@@ -1,0 +1,118 @@
+using Autodesk.AutoCAD.Runtime;
+using Autodesk.AutoCAD.ApplicationServices;
+using Autodesk.AutoCAD.DatabaseServices;
+using Autodesk.AutoCAD.EditorInput;
+using Autodesk.AutoCAD.Geometry;
+
+public class MyCommands
+{
+    [CommandMethod("bot")]
+    public void ProcessUserInput()
+    {
+        Document doc = Application.DocumentManager.MdiActiveDocument;
+        Editor ed = doc.Editor;
+
+        string userInput = GetStringFromUserInput("CAD", "何をしましょうか？");
+        if (userInput.Contains("直線"))
+        {
+            CreateLine();
+        }
+        else if (userInput.Contains("円"))
+        {
+            CreateCircle();
+        }
+        else
+        {
+            ed.WriteMessage("そのような操作はできません。");
+        }
+    }
+
+    private void CreateLine()
+    {
+        Document doc = Application.DocumentManager.MdiActiveDocument;
+        Editor ed = doc.Editor;
+
+        double start_x = GetDoubleFromUserInput("始点のX座標を入力してください。");
+        double start_y = GetDoubleFromUserInput("始点のY座標を入力してください。");
+        double end_x = GetDoubleFromUserInput("終点のX座標を入力してください。");
+        double end_y = GetDoubleFromUserInput("終点のY座標を入力してください。");
+
+        DrawLine(start_x, start_y, end_x, end_y);
+    }
+
+    private void CreateCircle()
+    {
+        Document doc = Application.DocumentManager.MdiActiveDocument;
+        Editor ed = doc.Editor;
+
+        double center_x = GetDoubleFromUserInput("中心のX座標を入力してください。");
+        double center_y = GetDoubleFromUserInput("中心のY座標を入力してください。");
+        double radius = GetDoubleFromUserInput("半径を入力してください。");
+
+        DrawCircle(center_x, center_y, radius);
+    }
+
+    private double GetDoubleFromUserInput(string prompt)
+    {
+        Editor ed = Application.DocumentManager.MdiActiveDocument.Editor;
+
+        while (true)
+        {
+            PromptDoubleResult result = ed.GetDouble(prompt);
+            if (result.Status == PromptStatus.OK)
+            {
+                return result.Value;
+            }
+            else
+            {
+                ed.WriteMessage("数値を入力してください。");
+            }
+        }
+    }
+
+    private string GetStringFromUserInput(string title, string prompt)
+    {
+        Editor ed = Application.DocumentManager.MdiActiveDocument.Editor;
+
+        return ed.GetString(prompt).StringResult;
+    }
+
+    private void DrawLine(double startX, double startY, double endX, double endY)
+    {
+        Document doc = Application.DocumentManager.MdiActiveDocument;
+        Database db = doc.Database;
+
+        using (Transaction tr = db.TransactionManager.StartTransaction())
+        {
+            BlockTable bt = tr.GetObject(db.BlockTableId, OpenMode.ForRead) as BlockTable;
+            BlockTableRecord btr = tr.GetObject(bt[BlockTableRecord.ModelSpace], OpenMode.ForWrite) as BlockTableRecord;
+
+            Point3d startPoint = new Point3d(startX, startY, 0);
+            Point3d endPoint = new Point3d(endX, endY, 0);
+            Line line = new Line(startPoint, endPoint);
+            btr.AppendEntity(line);
+            tr.AddNewlyCreatedDBObject(line, true);
+
+            tr.Commit();
+        }
+    }
+
+    private void DrawCircle(double centerX, double centerY, double radius)
+    {
+        Document doc = Application.DocumentManager.MdiActiveDocument;
+        Database db = doc.Database;
+
+        using (Transaction tr = db.TransactionManager.StartTransaction())
+        {
+            BlockTable bt = tr.GetObject(db.BlockTableId, OpenMode.ForRead) as BlockTable;
+            BlockTableRecord btr = tr.GetObject(bt[BlockTableRecord.ModelSpace], OpenMode.ForWrite) as BlockTableRecord;
+
+            Point3d centerPoint = new Point3d(centerX, centerY, 0);
+            Circle circle = new Circle(centerPoint, Vector3d.ZAxis, radius);
+            btr.AppendEntity(circle);
+            tr.AddNewlyCreatedDBObject(circle, true);
+
+            tr.Commit();
+        }
+    }
+}

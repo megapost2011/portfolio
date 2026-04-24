@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>耳トレAI v2</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #080810;
+  color: #e0e0e0;
+  font-family: 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+  min-height: 100vh;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 20px 14px 40px;
+}
+
+.container { width: 100%; max-width: 540px; display: flex; flex-direction: column; gap: 12px; }
+
+/* Header */
+h1 {
+  font-size: 28px; font-weight: 900; letter-spacing: -1px;
+  background: linear-gradient(135deg, #00d4ff, #a78bfa);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.ver-badge {
+  display: inline-block; font-size: 10px; padding: 2px 8px;
+  border-radius: 20px; background: rgba(167,139,250,0.15);
+  color: #a78bfa; border: 1px solid rgba(167,139,250,0.3);
+  vertical-align: middle; margin-left: 8px; letter-spacing: 1px;
+}
+.subtitle { font-size: 11px; color: #555; letter-spacing: 2px; margin-top: 4px; }
+
+/* AI設定パネル */
+.ai-panel {
+  border-radius: 16px; overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.08);
+}
+.ai-panel-header {
+  padding: 12px 16px; background: rgba(255,255,255,0.04);
+  display: flex; justify-content: space-between; align-items: center;
+  cursor: pointer; user-select: none;
+}
+.ai-panel-title { font-size: 13px; font-weight: 700; color: #aaa; }
+.ai-status-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #555; display: inline-block; margin-right: 6px;
+  transition: background 0.3s;
+}
+.ai-status-dot.connected { background: #4ade80; box-shadow: 0 0 6px #4ade80; }
+.ai-status-dot.loading { background: #fbbf24; animation: blink 1s infinite; }
+.ai-panel-body { padding: 14px 16px; background: rgba(0,0,0,0.2); }
+
+.detect-btn {
+  width: 100%; padding: 10px; border-radius: 10px;
+  background: rgba(0,212,255,0.1); border: 1px solid rgba(0,212,255,0.3);
+  color: #00d4ff; font-size: 13px; cursor: pointer; font-weight: 600;
+  transition: all 0.2s; margin-bottom: 10px;
+}
+.detect-btn:hover { background: rgba(0,212,255,0.2); }
+
+.model-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.model-item {
+  padding: 10px 14px; border-radius: 10px; cursor: pointer;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.03);
+  font-size: 12px; color: #aaa;
+  display: flex; justify-content: space-between; align-items: center;
+  transition: all 0.2s;
+}
+.model-item:hover { border-color: rgba(0,212,255,0.4); color: #00d4ff; }
+.model-item.selected {
+  border-color: #00d4ff; background: rgba(0,212,255,0.1);
+  color: #00d4ff; font-weight: 700;
+}
+.model-tag {
+  font-size: 10px; padding: 2px 6px; border-radius: 4px;
+  background: rgba(255,255,255,0.08); color: #666;
+}
+.model-tag.local { background: rgba(74,222,128,0.15); color: #4ade80; }
+.model-tag.cloud { background: rgba(167,139,250,0.15); color: #a78bfa; }
+
+.manual-input-row { display: flex; gap: 8px; }
+.manual-input {
+  flex: 1; padding: 8px 12px; border-radius: 8px;
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+  color: #ddd; font-size: 12px; outline: none;
+}
+.manual-input::placeholder { color: #555; }
+.manual-input:focus { border-color: rgba(0,212,255,0.4); }
+.manual-add-btn {
+  padding: 8px 14px; border-radius: 8px;
+  background: rgba(0,212,255,0.15); border: 1px solid rgba(0,212,255,0.3);
+  color: #00d4ff; font-size: 12px; cursor: pointer;
+}
+
+.ai-mode-row { display: flex; gap: 8px; margin-top: 8px; }
+.ai-mode-chip {
+  flex: 1; padding: 7px 6px; border-radius: 8px; text-align: center;
+  font-size: 11px; cursor: pointer;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.03); color: #777;
+  transition: all 0.2s;
+}
+.ai-mode-chip.active {
+  border-color: #a78bfa; background: rgba(167,139,250,0.15); color: #a78bfa;
+}
+
+/* Score bar */
+.scorebar {
+  display: flex; background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; overflow: hidden;
+}
+.score-cell { flex: 1; padding: 11px 6px; text-align: center; border-right: 1px solid rgba(255,255,255,0.06); }
+.score-cell:last-child { border-right: none; }
+.score-val { font-size: 20px; font-weight: 800; font-family: monospace; }
+.score-lbl { font-size: 9px; color: #555; letter-spacing: 1px; margin-top: 2px; }
+
+/* Mode buttons */
+.modes { display: flex; gap: 8px; }
+.mode-btn {
+  flex: 1; padding: 12px 14px; border-radius: 14px; cursor: pointer;
+  border: 2px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.03); color: #888; text-align: left;
+  transition: all 0.2s;
+}
+.mode-btn.active-num { border-color: #00d4ff; background: rgba(0,212,255,0.1); color: #00d4ff; }
+.mode-btn.active-word { border-color: #ff6b35; background: rgba(255,107,53,0.1); color: #ff6b35; }
+.mode-btn.active-sent { border-color: #a78bfa; background: rgba(167,139,250,0.1); color: #a78bfa; }
+.mode-icon { font-size: 20px; margin-bottom: 3px; }
+.mode-name { font-size: 12px; font-weight: 700; }
+.mode-desc { font-size: 10px; opacity: 0.7; margin-top: 1px; }
+
+/* Main card */
+.main-card {
+  padding: 26px 22px; border-radius: 20px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  min-height: 230px; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 16px;
+}
+
+.big-icon { font-size: 46px; }
+.hint-text { font-size: 13px; color: #aaa; text-align: center; line-height: 1.7; }
+
+.start-btn {
+  padding: 13px 38px; border-radius: 50px;
+  background: linear-gradient(135deg, #00d4ff, #7c3aed);
+  border: none; color: #fff; font-size: 15px; font-weight: 700;
+  cursor: pointer; letter-spacing: 1px;
+  box-shadow: 0 0 28px rgba(0,212,255,0.28); transition: opacity 0.2s;
+}
+.start-btn:hover { opacity: 0.85; }
+
+.countdown-num {
+  font-size: 76px; font-weight: 900; font-family: monospace; color: #00d4ff;
+  text-shadow: 0 0 40px rgba(0,212,255,0.6); animation: popIn 0.3s ease;
+}
+@keyframes popIn { from { transform: scale(1.4); opacity: 0.3; } to { transform: scale(1); opacity: 1; } }
+
+.spinner {
+  width: 54px; height: 54px; border-radius: 50%;
+  border: 3px solid rgba(0,212,255,0.15); border-top-color: #00d4ff;
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.playing-label { color: #00d4ff; font-size: 13px; font-weight: 600; letter-spacing: 2px; }
+.playing-sub { color: #555; font-size: 11px; }
+
+/* 難易度バッジ */
+.diff-badge {
+  padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;
+}
+.diff-1 { background: rgba(74,222,128,0.15); color: #4ade80; border: 1px solid rgba(74,222,128,0.3); }
+.diff-2 { background: rgba(251,191,36,0.15); color: #fbbf24; border: 1px solid rgba(251,191,36,0.3); }
+.diff-3 { background: rgba(248,113,113,0.15); color: #f87171; border: 1px solid rgba(248,113,113,0.3); }
+
+.answer-input {
+  width: 100%; padding: 13px 14px; border-radius: 12px;
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(0,212,255,0.4);
+  color: #fff; font-size: 18px; outline: none;
+  text-align: center; letter-spacing: 2px; font-family: monospace;
+}
+.answer-input.word-mode { font-family: 'Hiragino Sans', sans-serif; letter-spacing: 1px; font-size: 15px; }
+.answer-input:focus { border-color: #00d4ff; box-shadow: 0 0 0 3px rgba(0,212,255,0.12); }
+.input-hint { font-size: 10px; color: #555; text-align: center; }
+.submit-btn {
+  padding: 11px 34px; border-radius: 50px;
+  background: linear-gradient(135deg, #00d4ff, #7c3aed);
+  border: none; color: #fff; font-size: 13px; font-weight: 700; cursor: pointer;
+}
+
+.result-icon { font-size: 38px; }
+.result-label { font-size: 15px; font-weight: 700; }
+.correct-lbl { color: #4ade80; } .wrong-lbl { color: #f87171; }
+
+.answer-box {
+  padding: 9px 16px; border-radius: 10px; background: rgba(255,255,255,0.05);
+  font-size: 12px; text-align: center; width: 100%;
+}
+.answer-val { font-family: monospace; color: #00d4ff; font-weight: 700; font-size: 14px; }
+
+.feedback-box {
+  padding: 12px 14px; border-radius: 12px;
+  background: rgba(167,139,250,0.08); border: 1px solid rgba(167,139,250,0.2);
+  text-align: left; font-size: 12px; line-height: 1.7; color: #ccc; width: 100%;
+}
+.feedback-label { color: #a78bfa; font-weight: 700; font-size: 10px; letter-spacing: 1px; display: block; margin-bottom: 3px; }
+
+/* AI生成バッジ */
+.ai-gen-badge {
+  display: inline-block; font-size: 9px; padding: 1px 6px; border-radius: 4px;
+  background: rgba(0,212,255,0.12); color: #00d4ff; margin-left: 6px;
+  border: 1px solid rgba(0,212,255,0.2);
+}
+
+.btn-row { display: flex; gap: 8px; justify-content: center; }
+.next-btn { padding: 11px 26px; border-radius: 50px; background: linear-gradient(135deg, #00d4ff, #7c3aed); border: none; color: #fff; font-size: 13px; font-weight: 700; cursor: pointer; }
+.back-btn { padding: 11px 18px; border-radius: 50px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12); color: #aaa; font-size: 13px; cursor: pointer; }
+
+/* Streak bar */
+.streak-bar {
+  padding: 10px 14px; border-radius: 12px;
+  background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06);
+  display: flex; justify-content: space-between; align-items: center;
+}
+.streak-hint { font-size: 11px; color: #666; }
+.dots { display: flex; gap: 4px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.1); transition: background 0.3s; }
+.dot.lit { background: #00d4ff; }
+
+/* 語彙プール表示 */
+.vocab-stat {
+  padding: 9px 14px; border-radius: 10px;
+  background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05);
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 11px;
+}
+.vocab-count { color: #00d4ff; font-weight: 700; font-family: monospace; }
+
+/* History */
+.history-box { padding: 12px 14px; border-radius: 14px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); }
+.history-title { font-size: 10px; color: #555; letter-spacing: 2px; margin-bottom: 7px; }
+.history-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; font-size: 11px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+.history-row:last-child { border-bottom: none; }
+.h-correct { color: #4ade80; } .h-wrong { color: #f87171; }
+.h-ans { font-family: monospace; color: #888; flex: 1; margin-left: 7px; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px; }
+.h-lv { color: #555; font-size: 9px; } .h-time { color: #444; font-size: 9px; margin-left: 5px; }
+
+.hidden { display: none !important; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <div>
+    <h1>耳トレAI <span class="ver-badge">v2</span></h1>
+    <div class="subtitle">聴覚ワーキングメモリ トレーニング</div>
+  </div>
+
+  <!-- AI設定パネル -->
+  <div class="ai-panel">
+    <div class="ai-panel-header" onclick="toggleAIPanel()">
+      <span class="ai-panel-title">
+        <span class="ai-status-dot" id="ai-dot"></span>
+        <span id="ai-panel-label">AI設定（タップして展開）</span>
+      </span>
+      <span id="ai-arrow" style="color:#555;font-size:12px">▼</span>
+    </div>
+    <div class="ai-panel-body" id="ai-panel-body">
+
+      <button class="detect-btn" onclick="detectModels()">
+        🔍 利用可能なAIモデルを検索
+      </button>
+
+      <div class="model-list" id="model-list">
+        <!-- モデル一覧がここに表示される -->
+      </div>
+
+      <!-- 手動入力 -->
+      <div style="font-size:10px;color:#555;margin-bottom:6px;">手動でURL・モデル名を追加:</div>
+      <div class="manual-input-row">
+        <input class="manual-input" id="manual-url" placeholder="http://localhost:11434 または APIキー不要URL">
+        <input class="manual-input" id="manual-model" placeholder="モデル名 (例: llama3)" style="max-width:140px;">
+        <button class="manual-add-btn" onclick="addManualModel()">追加</button>
+      </div>
+
+      <!-- AI使用モード -->
+      <div style="font-size:10px;color:#555;margin:10px 0 6px;">AIの使い方:</div>
+      <div class="ai-mode-row">
+        <div class="ai-mode-chip active" id="chip-vocab" onclick="setAIMode('vocab')">語彙生成</div>
+        <div class="ai-mode-chip" id="chip-feedback" onclick="setAIMode('feedback')">フィードバック</div>
+        <div class="ai-mode-chip" id="chip-both" onclick="setAIMode('both')">両方</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Score Bar -->
+  <div class="scorebar">
+    <div class="score-cell"><div class="score-val" id="disp-score" style="color:#00d4ff">0</div><div class="score-lbl">スコア</div></div>
+    <div class="score-cell"><div class="score-val" id="disp-streak" style="color:#ff6b35">0🔥</div><div class="score-lbl">連続正解</div></div>
+    <div class="score-cell"><div class="score-val" id="disp-level" style="color:#a78bfa">Lv.1</div><div class="score-lbl">レベル</div></div>
+    <div class="score-cell"><div class="score-val" id="disp-diff" style="color:#fbbf24">★</div><div class="score-lbl">難易度</div></div>
+  </div>
+
+  <!-- Mode Buttons -->
+  <div class="modes">
+    <button class="mode-btn active-num" id="btn-num" onclick="setMode('numbers')">
+      <div class="mode-icon">🔢</div><div class="mode-name">数字</div><div class="mode-desc">数字列記憶</div>
+    </button>
+    <button class="mode-btn" id="btn-word" onclick="setMode('words')">
+      <div class="mode-icon">📝</div><div class="mode-name">単語</div><div class="mode-desc">単語リスト</div>
+    </button>
+    <button class="mode-btn" id="btn-sent" onclick="setMode('sentence')">
+      <div class="mode-icon">💬</div><div class="mode-name">文章</div><div class="mode-desc">要点記憶</div>
+    </button>
+  </div>
+
+  <!-- 語彙プール状態 -->
+  <div class="vocab-stat">
+    <span style="color:#666">語彙プール</span>
+    <span><span class="vocab-count" id="vocab-count">50</span> 語 <span id="ai-gen-ind" class="ai-gen-badge hidden">AI生成済</span></span>
+  </div>
+
+  <!-- Main Card -->
+  <div class="main-card">
+
+    <div id="phase-idle" style="width:100%;text-align:center;display:flex;flex-direction:column;align-items:center;gap:14px;">
+      <div class="big-icon" id="idle-icon">🔢</div>
+      <div class="hint-text" id="idle-hint">3桁の数字を読み上げます</div>
+      <button class="start-btn" onclick="startRound()">スタート</button>
+    </div>
+
+    <div id="phase-countdown" class="hidden" style="text-align:center;display:flex;flex-direction:column;align-items:center;gap:10px;">
+      <div class="countdown-num" id="countdown-num">3</div>
+      <div class="hint-text">準備して...</div>
+    </div>
+
+    <div id="phase-playing" class="hidden" style="text-align:center;display:flex;flex-direction:column;align-items:center;gap:12px;">
+      <div class="spinner" id="spinner"></div>
+      <div class="playing-label" id="playing-label">♪ 聞いてください...</div>
+      <div class="playing-sub" id="playing-sub">音声を再生中</div>
+    </div>
+
+    <div id="phase-waiting" class="hidden" style="width:100%;display:flex;flex-direction:column;align-items:center;gap:12px;">
+      <div class="hint-text" id="waiting-hint">聞こえた数字をそのまま入力してください</div>
+      <input class="answer-input" id="answer-input" type="text" placeholder="例: 381"
+        onkeydown="if(event.key==='Enter') submitAnswer()">
+      <div class="input-hint" id="input-hint"></div>
+      <button class="submit-btn" onclick="submitAnswer()">答える</button>
+    </div>
+
+    <div id="phase-result" class="hidden" style="width:100%;display:flex;flex-direction:column;align-items:center;gap:12px;">
+      <div class="result-icon" id="result-icon">⭕️</div>
+      <div class="result-label" id="result-label"></div>
+      <div class="answer-box">正解: <span class="answer-val" id="correct-val"></span></div>
+      <div class="feedback-box" id="feedback-box">
+        <span class="feedback-label">🤖 AIコーチ <span id="fb-model-name" style="color:#555;font-weight:400"></span></span>
+        <span id="feedback-text">分析中...</span>
+      </div>
+      <div class="btn-row">
+        <button class="next-btn" onclick="startRound()">次の問題</button>
+        <button class="back-btn" onclick="showPhase('idle')">戻る</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Streak -->
+  <div class="streak-bar">
+    <span class="streak-hint">3連続正解でレベルアップ</span>
+    <div class="dots"><div class="dot" id="dot0"></div><div class="dot" id="dot1"></div><div class="dot" id="dot2"></div></div>
+  </div>
+
+  <!-- History -->
+  <div class="history-box" id="history-box" style="display:none;">
+    <div class="history-title">HISTORY</div>
+    <div id="history-rows"></div>
+  </div>
+
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+// 語彙プール（ベース）
+// ══════════════════════════════════════════════════════════════
+const BASE_VOCAB = {
+  食べ物: ['りんご','バナナ','いちご','みかん','ぶどう','すいか','もも','なし','かき','レモン',
+           'ラーメン','寿司','天ぷら','うどん','そば','カレー','ハンバーガー','ピザ','パスタ','餃子',
+           'おにぎり','たこ焼き','焼き鳥','刺身','豆腐','納豆','味噌汁','卵焼き','唐揚げ','ステーキ'],
+  場所:   ['図書館','駅','病院','学校','銀行','公園','映画館','美術館','神社','空港',
+           'コンビニ','デパート','郵便局','体育館','市役所','警察署','消防署','博物館','動物園','水族館'],
+  乗り物: ['電車','バス','タクシー','飛行機','船','自転車','バイク','新幹線','地下鉄','ヘリコプター'],
+  日用品: ['財布','鍵','携帯','ノート','鉛筆','消しゴム','傘','時計','メガネ','バッグ',
+           '帽子','靴','コート','マフラー','手袋','スカーフ','ベルト','サングラス','リュック','ハンカチ'],
+  自然:   ['山','川','海','湖','森','砂漠','空','雲','雨','雪','風','嵐','虹','夕日','星空'],
+  感情:   ['喜び','悲しみ','怒り','驚き','恐怖','安心','緊張','興奮','退屈','満足'],
+  動作:   ['走る','歩く','飛ぶ','泳ぐ','読む','書く','話す','聴く','食べる','眠る',
+           '笑う','泣く','考える','学ぶ','働く','遊ぶ','踊る','歌う','描く','作る'],
+  色:     ['赤','青','緑','黄','紫','橙','白','黒','灰','茶','桃','金','銀','藍','紺'],
+  数字語: ['一番','二度','三角','四季','五感','六月','七夕','八方','九九','十分'],
+  高難度: ['曖昧','抽象','論理','概念','哲学','認識','思考','判断','直感','洞察',
+           '矛盾','逆説','仮説','検証','演繹','帰納','類推','分析','統合','創造',
+           '国際連合','持続可能','人工知能','量子力学','遺伝子組換え'],
+};
+
+let vocabPool = [];
+function rebuildPool() {
+  vocabPool = Object.values(BASE_VOCAB).flat();
+  document.getElementById('vocab-count').textContent = vocabPool.length;
+}
+rebuildPool();
+
+// ══════════════════════════════════════════════════════════════
+// AIモデル管理
+// ══════════════════════════════════════════════════════════════
+let availableModels = [];  // { name, type, endpoint, modelId }
+let selectedModel = null;
+let aiMode = 'vocab'; // vocab | feedback | both
+let aiPanelOpen = true;
+
+// Claude API（フォールバック）
+const CLAUDE_MODEL = { name: 'Claude (クラウド)', type: 'cloud', endpoint: 'anthropic', modelId: 'claude-sonnet-4-20250514' };
+
+function toggleAIPanel() {
+  aiPanelOpen = !aiPanelOpen;
+  document.getElementById('ai-panel-body').style.display = aiPanelOpen ? '' : 'none';
+  document.getElementById('ai-arrow').textContent = aiPanelOpen ? '▲' : '▼';
+}
+
+function setAIMode(m) {
+  aiMode = m;
+  ['vocab','feedback','both'].forEach(x => {
+    document.getElementById('chip-' + x).classList.toggle('active', x === m);
+  });
+}
+
+async function detectModels() {
+  const list = document.getElementById('model-list');
+  list.innerHTML = '<div style="color:#666;font-size:12px;padding:8px 0;">検索中...</div>';
+  availableModels = [];
+
+  // 1) Puma Browser / window.ai API (Chrome AI / WebLLM標準)
+  try {
+    if (window.ai) {
+      // window.ai.languageModel (Chrome AI API)
+      if (window.ai.languageModel) {
+        const cap = await window.ai.languageModel.capabilities();
+        if (cap && cap.available !== 'no') {
+          availableModels.push({ name: 'Puma Browser 内蔵LLM (window.ai)', type: 'local', endpoint: 'window.ai', modelId: 'default' });
+        }
+      }
+      // window.ai.assistant (旧API)
+      if (window.ai.assistant) {
+        availableModels.push({ name: 'Puma Browser Assistant API', type: 'local', endpoint: 'window.ai.assistant', modelId: 'default' });
+      }
+      // その他window.aiのプロパティを走査
+      for (const key of Object.keys(window.ai)) {
+        if (!['languageModel','assistant'].includes(key)) {
+          availableModels.push({ name: `Puma AI: ${key}`, type: 'local', endpoint: `window.ai.${key}`, modelId: key });
+        }
+      }
+    }
+  } catch(e) { console.log('window.ai check:', e); }
+
+  // 2) Ollama API (localhost:11434)
+  const ollamaPorts = [11434];
+  for (const port of ollamaPorts) {
+    try {
+      const r = await fetch(`http://localhost:${port}/api/tags`, { signal: AbortSignal.timeout(2000) });
+      if (r.ok) {
+        const d = await r.json();
+        (d.models || []).forEach(m => {
+          availableModels.push({ name: `Ollama: ${m.name}`, type: 'local', endpoint: `http://localhost:${port}`, modelId: m.name });
+        });
+      }
+    } catch(e) { /* not running */ }
+  }
+
+  // 3) llama.cpp サーバー (localhost:8080)
+  const llamaPorts = [8080, 8000, 5000];
+  for (const port of llamaPorts) {
+    try {
+      const r = await fetch(`http://localhost:${port}/health`, { signal: AbortSignal.timeout(1500) });
+      if (r.ok) {
+        availableModels.push({ name: `llama.cpp (port ${port})`, type: 'local', endpoint: `http://localhost:${port}`, modelId: 'llama.cpp' });
+      }
+    } catch(e) {}
+    // OpenAI互換エンドポイントも試す
+    try {
+      const r = await fetch(`http://localhost:${port}/v1/models`, { signal: AbortSignal.timeout(1500) });
+      if (r.ok) {
+        const d = await r.json();
+        (d.data || []).forEach(m => {
+          availableModels.push({ name: `llama.cpp (${port}): ${m.id}`, type: 'local', endpoint: `http://localhost:${port}`, modelId: m.id });
+        });
+      }
+    } catch(e) {}
+  }
+
+  // 4) Claude API（常に選択肢として追加）
+  availableModels.push(CLAUDE_MODEL);
+
+  renderModelList();
+}
+
+function renderModelList() {
+  const list = document.getElementById('model-list');
+  if (availableModels.length === 0) {
+    list.innerHTML = '<div style="color:#f87171;font-size:12px;padding:6px 0;">モデルが見つかりませんでした。手動で追加してください。</div>';
+    return;
+  }
+  list.innerHTML = availableModels.map((m, i) => `
+    <div class="model-item ${selectedModel === i ? 'selected' : ''}" onclick="selectModel(${i})">
+      <span>${m.name}</span>
+      <span class="model-tag ${m.type}">${m.type === 'local' ? 'ローカル' : 'クラウド'}</span>
+    </div>
+  `).join('');
+}
+
+function selectModel(i) {
+  selectedModel = i;
+  renderModelList();
+  const m = availableModels[i];
+  const dot = document.getElementById('ai-dot');
+  dot.className = 'ai-status-dot connected';
+  document.getElementById('ai-panel-label').textContent = `AI: ${m.name}`;
+  document.getElementById('fb-model-name').textContent = `[${m.name}]`;
+}
+
+function addManualModel() {
+  const url = document.getElementById('manual-url').value.trim();
+  const modelId = document.getElementById('manual-model').value.trim() || 'default';
+  if (!url) return;
+  availableModels.push({ name: `手動: ${modelId} @ ${url}`, type: 'local', endpoint: url, modelId });
+  renderModelList();
+  document.getElementById('manual-url').value = '';
+  document.getElementById('manual-model').value = '';
+}
+
+// ══════════════════════════════════════════════════════════════
+// AI呼び出し（統一インターフェース）
+// ══════════════════════════════════════════════════════════════
+async function callAI(prompt, maxTokens = 300) {
+  const model = selectedModel !== null ? availableModels[selectedModel] : CLAUDE_MODEL;
+
+  // window.ai (Puma Browser / Chrome AI)
+  if (model.endpoint === 'window.ai') {
+    const session = await window.ai.languageModel.create();
+    const result = await session.prompt(prompt);
+    session.destroy();
+    return result;
+  }
+  if (model.endpoint === 'window.ai.assistant') {
+    const session = await window.ai.assistant.create();
+    const result = await session.prompt(prompt);
+    session.destroy();
+    return result;
+  }
+  if (model.endpoint.startsWith('window.ai.')) {
+    const key = model.endpoint.replace('window.ai.', '');
+    const api = window.ai[key];
+    const session = await api.create?.() || api;
+    return await session.prompt(prompt);
+  }
+
+  // Ollama
+  if (model.endpoint.includes('localhost') && model.modelId !== 'llama.cpp') {
+    try {
+      const r = await fetch(`${model.endpoint}/api/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: model.modelId, prompt, stream: false })
+      });
+      if (r.ok) {
+        const d = await r.json();
+        return d.response || '';
+      }
+    } catch(e) {}
+    // OpenAI互換フォールバック
+    const r = await fetch(`${model.endpoint}/v1/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: model.modelId, messages: [{ role: 'user', content: prompt }], max_tokens: maxTokens })
+    });
+    const d = await r.json();
+    return d.choices?.[0]?.message?.content || '';
+  }
+
+  // llama.cpp サーバー (OpenAI互換)
+  if (model.endpoint.includes('localhost') && model.modelId === 'llama.cpp') {
+    const r = await fetch(`${model.endpoint}/v1/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'gpt-3.5-turbo', messages: [{ role: 'user', content: prompt }], max_tokens: maxTokens })
+    });
+    const d = await r.json();
+    return d.choices?.[0]?.message?.content || '';
+  }
+
+  // Claude API（フォールバック）
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: maxTokens,
+      messages: [{ role: 'user', content: prompt }]
+    })
+  });
+  const d = await r.json();
+  return d.content?.[0]?.text || '';
+}
+
+// ══════════════════════════════════════════════════════════════
+// AI語彙生成
+// ══════════════════════════════════════════════════════════════
+let lastVocabGenLevel = 0;
+
+async function maybeGenerateVocab() {
+  if ((aiMode !== 'vocab' && aiMode !== 'both') || selectedModel === null) return;
+  if (level - lastVocabGenLevel < 2) return; // 2レベルごとに生成
+  lastVocabGenLevel = level;
+
+  const cat = level <= 3 ? '日常的な' : level <= 6 ? 'やや難しい' : '難しい抽象的な';
+  const count = 15;
+  const prompt = `日本語の${cat}単語を${count}個だけ出力してください。
+条件:
+- 2〜5文字程度の単語
+- 音声で読み上げやすいもの（漢字はひらがなも可）
+- カンマ区切りで一行で出力
+- 説明・番号・記号不要、単語のみ
+例: りんご,バナナ,いちご,みかん,ぶどう`;
+
+  try {
+    const result = await callAI(prompt, 200);
+    const newWords = result.split(/[,、，\n]/).map(w => w.trim()).filter(w => w.length >= 2 && w.length <= 10);
+    if (newWords.length > 0) {
+      newWords.forEach(w => { if (!vocabPool.includes(w)) vocabPool.push(w); });
+      document.getElementById('vocab-count').textContent = vocabPool.length;
+      document.getElementById('ai-gen-ind').classList.remove('hidden');
+      console.log(`AI生成: ${newWords.length}語追加 (計${vocabPool.length}語)`);
+    }
+  } catch(e) { console.warn('語彙生成エラー:', e); }
+}
+
+// ══════════════════════════════════════════════════════════════
+// ゲーム状態
+// ══════════════════════════════════════════════════════════════
+let mode = 'numbers';
+let score = 0, streak = 0, level = 1;
+let currentItems = [];
+let history = [];
+
+function getLevelConfig() {
+  const d = Math.ceil(level / 3); // 難易度段階 1〜4
+  if (mode === 'numbers') {
+    return { length: Math.min(3 + level, 14), rate: Math.max(0.55, 1.15 - level * 0.05), diff: d };
+  } else if (mode === 'words') {
+    return { count: Math.min(2 + Math.floor(level * 0.9), 10), rate: Math.max(0.6, 1.1 - level * 0.04), diff: d };
+  } else { // sentence
+    return { count: Math.min(3 + Math.floor(level * 0.5), 8), rate: Math.max(0.65, 1.0 - level * 0.03), diff: d };
+  }
+}
+
+function genNumbers(len) {
+  return Array.from({length: len}, () => String(Math.floor(Math.random() * 10)));
+}
+
+function genWords(count) {
+  const pool = [...vocabPool].sort(() => Math.random() - 0.5);
+  return pool.slice(0, count);
+}
+
+// 文章モード: AIで短文生成 or ランダム組み合わせ
+async function genSentenceItems(count) {
+  if ((aiMode === 'vocab' || aiMode === 'both') && selectedModel !== null) {
+    try {
+      const prompt = `短い日本語の文を1つ作ってください。${count * 3}〜${count * 5}文字程度。
+読み上げて要点を記憶させる訓練用なので、人物・場所・行動を含む具体的な文にしてください。
+文だけ出力（説明不要）。例: 田中さんが公園でりんごを食べた`;
+      const sentence = await callAI(prompt, 80);
+      return [sentence.trim().slice(0, 40)]; // 文丸ごと
+    } catch(e) {}
+  }
+  // フォールバック: 単語組み合わせ
+  return genWords(count);
+}
+
+// ══════════════════════════════════════════════════════════════
+// UI
+// ══════════════════════════════════════════════════════════════
+function showPhase(p) {
+  ['idle','countdown','playing','waiting','result'].forEach(ph => {
+    const el = document.getElementById('phase-' + ph);
+    el.classList.toggle('hidden', ph !== p);
+  });
+}
+
+function updateScoreBar() {
+  document.getElementById('disp-score').textContent = score;
+  document.getElementById('disp-streak').textContent = streak + '🔥';
+  document.getElementById('disp-level').textContent = 'Lv.' + level;
+  const d = Math.ceil(level / 3);
+  const stars = d >= 4 ? '★★★★' : d >= 3 ? '★★★' : d >= 2 ? '★★' : '★';
+  document.getElementById('disp-diff').textContent = stars;
+  for (let i = 0; i < 3; i++) {
+    document.getElementById('dot' + i).classList.toggle('lit', i < (streak % 3));
+  }
+}
+
+function setMode(m) {
+  const current = ['idle','countdown','playing','waiting','result'].find(p =>
+    !document.getElementById('phase-' + p).classList.contains('hidden'));
+  if (current !== 'idle' && current !== 'result') return;
+  mode = m;
+  ['num','word','sent'].forEach(k => {
+    document.getElementById('btn-' + k).className = 'mode-btn';
+  });
+  if (m === 'numbers') document.getElementById('btn-num').className = 'mode-btn active-num';
+  else if (m === 'words') document.getElementById('btn-word').className = 'mode-btn active-word';
+  else document.getElementById('btn-sent').className = 'mode-btn active-sent';
+  updateIdleHint();
+  showPhase('idle');
+}
+
+function updateIdleHint() {
+  const cfg = getLevelConfig();
+  const hints = {
+    numbers: `${cfg.length}桁の数字を読み上げます`,
+    words: `${cfg.count}個の単語を読み上げます（語彙${vocabPool.length}語から出題）`,
+    sentence: `文章を読み上げます。要点を答えてください`
+  };
+  document.getElementById('idle-hint').textContent = hints[mode];
+  document.getElementById('idle-icon').textContent = { numbers: '🔢', words: '📝', sentence: '💬' }[mode];
+}
+
+// ══════════════════════════════════════════════════════════════
+// 音声
+// ══════════════════════════════════════════════════════════════
+function speakText(text, rate, onEnd) {
+  window.speechSynthesis.cancel();
+  setTimeout(() => {
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = 'ja-JP'; utter.rate = rate; utter.pitch = 1.0; utter.volume = 1.0;
+    utter.onend = onEnd;
+    utter.onerror = () => { if (onEnd) onEnd(); };
+    const voices = window.speechSynthesis.getVoices();
+    const jaVoice = voices.find(v => v.lang.startsWith('ja'));
+    if (jaVoice) utter.voice = jaVoice;
+    window.speechSynthesis.speak(utter);
+  }, 300);
+}
+
+function ensureVoices(cb) {
+  const v = window.speechSynthesis.getVoices();
+  if (v.length > 0) { cb(); return; }
+  window.speechSynthesis.addEventListener('voiceschanged', () => cb(), { once: true });
+}
+
+// ══════════════════════════════════════════════════════════════
+// ゲームロジック
+// ══════════════════════════════════════════════════════════════
+async function startRound() {
+  await maybeGenerateVocab();
+  updateIdleHint();
+  const cfg = getLevelConfig();
+
+  if (mode === 'numbers') {
+    currentItems = genNumbers(cfg.length);
+  } else if (mode === 'words') {
+    currentItems = genWords(cfg.count);
+  } else {
+    showPhase('playing');
+    document.getElementById('playing-label').textContent = '🤖 AI文章を生成中...';
+    document.getElementById('playing-sub').textContent = 'しばらくお待ちください';
+    currentItems = await genSentenceItems(cfg.count);
+    // 生成後すぐカウントダウンへ
+  }
+
+  // カウントダウン
+  showPhase('countdown');
+  let c = 3;
+  document.getElementById('countdown-num').textContent = c;
+  const cd = setInterval(() => {
+    c--;
+    if (c > 0) {
+      document.getElementById('countdown-num').textContent = c;
+    } else {
+      clearInterval(cd);
+      showPhase('playing');
+      document.getElementById('spinner').style.borderTopColor =
+        mode === 'numbers' ? '#00d4ff' : mode === 'words' ? '#ff6b35' : '#a78bfa';
+      document.getElementById('playing-label').textContent = '♪ 聞いてください...';
+      document.getElementById('playing-sub').textContent = '音声を再生中';
+
+      ensureVoices(() => {
+        const text = mode === 'numbers'
+          ? currentItems.join('、')
+          : currentItems.join('、');
+        speakText(text, cfg.rate, () => {
+          showPhase('waiting');
+          const input = document.getElementById('answer-input');
+          input.value = '';
+          if (mode === 'sentence') {
+            input.className = 'answer-input word-mode';
+            input.placeholder = '聞こえた内容を入力（キーワードでも可）';
+            document.getElementById('waiting-hint').textContent = '文章の要点を入力してください';
+            document.getElementById('input-hint').textContent = '';
+          } else if (mode === 'words') {
+            input.className = 'answer-input word-mode';
+            input.placeholder = '例: りんご・電車・青空';
+            document.getElementById('waiting-hint').textContent = '聞こえた単語を「・」区切りで入力';
+            document.getElementById('input-hint').textContent = '※単語と単語の間は「・」（中点）で区切る';
+          } else {
+            input.className = 'answer-input';
+            input.placeholder = '例: 381';
+            document.getElementById('waiting-hint').textContent = '聞こえた数字をそのまま入力してください';
+            document.getElementById('input-hint').textContent = '';
+          }
+          setTimeout(() => input.focus(), 100);
+        });
+      });
+    }
+  }, 1000);
+}
+
+async function submitAnswer() {
+  const userRaw = document.getElementById('answer-input').value.trim();
+  if (!userRaw) return;
+
+  let expected, isCorrect;
+
+  if (mode === 'sentence') {
+    expected = currentItems[0];
+    // 文章は完全一致でなく、キーワード一致で判定
+    const keywords = expected.replace(/[はがをにでも]/g, ' ').split(/\s+/).filter(w => w.length >= 2);
+    const hitCount = keywords.filter(kw => userRaw.includes(kw)).length;
+    isCorrect = hitCount >= Math.ceil(keywords.length * 0.6);
+  } else {
+    expected = mode === 'numbers' ? currentItems.join('') : currentItems.join('・');
+    isCorrect = expected === userRaw;
+  }
+
+  // State update
+  streak = isCorrect ? streak + 1 : 0;
+  score += isCorrect ? (10 * level) + (Math.floor(streak / 3) * 5) : 0;
+  if (isCorrect && streak % 3 === 0 && streak > 0) level = Math.min(level + 1, 12);
+  updateScoreBar();
+
+  // History
+  const now = new Date().toLocaleTimeString('ja-JP', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  history.unshift({ mode, correct: isCorrect, expected, userAnswer: userRaw, level, time: now });
+  renderHistory();
+
+  // Result UI
+  showPhase('result');
+  document.getElementById('result-icon').textContent = isCorrect ? '⭕️' : '❌';
+  const lbl = document.getElementById('result-label');
+  lbl.textContent = isCorrect ? '正解！' : '不正解';
+  lbl.className = 'result-label ' + (isCorrect ? 'correct-lbl' : 'wrong-lbl');
+  document.getElementById('correct-val').textContent = expected;
+  document.getElementById('feedback-text').textContent = '分析中...';
+
+  // AI feedback
+  if (aiMode === 'feedback' || aiMode === 'both') {
+    try {
+      const modeLabel = {numbers:'数字列',words:'単語リスト',sentence:'文章'}[mode];
+      const prompt = `聴覚記憶トレーニングのAIコーチとして短くフィードバックしてください（日本語・2〜3文）。
+
+トレーニング: ${modeLabel}記憶
+正解: ${expected}
+ユーザーの回答: ${userRaw}
+正誤: ${isCorrect ? '正解' : '不正解'}
+レベル: ${level}
+
+発達障害・ADHD傾向の方に優しい言葉で、具体的な記憶術のコツを1つ含めてください。`;
+      const fb = await callAI(prompt, 200);
+      document.getElementById('feedback-text').textContent = fb;
+    } catch(e) {
+      document.getElementById('feedback-text').textContent = isCorrect
+        ? 'よく聞けています！この調子で続けましょう。'
+        : '惜しかったです。最初のいくつかから丁寧に覚える練習をしてみましょう。';
+    }
+  } else {
+    document.getElementById('feedback-text').textContent = isCorrect
+      ? '正解です！次の問題に進みましょう。'
+      : `正解は「${expected}」でした。もう一度挑戦してみましょう。`;
+  }
+}
+
+function renderHistory() {
+  const box = document.getElementById('history-box');
+  box.style.display = 'block';
+  document.getElementById('history-rows').innerHTML = history.slice(0, 6).map(h => `
+    <div class="history-row">
+      <span class="${h.correct ? 'h-correct' : 'h-wrong'}">${h.correct ? '✓' : '✗'}</span>
+      <span class="h-ans">${h.expected}</span>
+      <span class="h-lv">Lv.${h.level}</span>
+      <span class="h-time">${h.time}</span>
+    </div>
+  `).join('');
+}
+
+// Init
+window.speechSynthesis.getVoices();
+window.speechSynthesis.addEventListener('voiceschanged', () => {});
+updateScoreBar();
+updateIdleHint();
+
+// 起動時にモデル検索を自動実行
+detectModels();
+</script>
+</body>
+</html>

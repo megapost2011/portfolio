@@ -1,0 +1,2035 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ELECTimate">
+<title>ELECTimate AI v13.7.1</title>
+<style>
+/* ── Design Tokens ─────────────────────────────────────────────
+   電気設備図面の世界: 青焼き図面の紺 × 警告黄 × 導線オレンジ
+   タイポグラフィ: ラベル・数値に等幅系、UIにシステムフォント
+──────────────────────────────────────────────────────────────── */
+:root {
+  --bg:        #0f1923;   /* 図面台紙の深紺 */
+  --surface:   #162030;
+  --surface2:  #1e2d40;
+  --border:    #2a3f58;
+  --accent:    #f0a500;   /* 警告黄・電極色 */
+  --accent2:   #e06020;   /* 導線オレンジ */
+  --ok:        #28c87a;
+  --ng:        #e84040;
+  --text:      #d8e8f4;
+  --text2:     #7a9ab8;
+  --mono:      'SF Mono', 'Courier New', monospace;
+  --ui:        -apple-system, 'Hiragino Sans', sans-serif;
+  --radius:    6px;
+  --ribbon-h:  48px;
+  --sidebar-w: 200px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: var(--ui); font-size: 14px; }
+
+/* ── Layout ─────────────────────────────────────────────────── */
+#app { display: flex; flex-direction: column; height: 100vh; }
+#titlebar {
+  display: flex; align-items: center; gap: 12px;
+  padding: 0 16px; height: 40px;
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+#titlebar .logo { font-size: 11px; font-family: var(--mono); color: var(--accent); letter-spacing: 0.08em; }
+#titlebar .status { margin-left: auto; font-size: 11px; color: var(--text2); max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#ai-usage { font-size: 10px; color: #4a8fc0; font-family: var(--mono); white-space: nowrap; }
+
+#main { display: flex; flex: 1; overflow: hidden; }
+
+/* ── Sidebar ─────────────────────────────────────────────────── */
+#sidebar {
+  width: var(--sidebar-w); flex-shrink: 0;
+  background: var(--surface); border-right: 1px solid var(--border);
+  overflow-y: auto; display: flex; flex-direction: column;
+}
+.nav-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 14px; cursor: pointer;
+  font-size: 12px; color: var(--text2);
+  border-left: 3px solid transparent;
+  transition: all 0.15s;
+  user-select: none;
+}
+.nav-item:hover { background: var(--surface2); color: var(--text); }
+.nav-item.active { color: var(--accent); border-left-color: var(--accent); background: rgba(240,165,0,0.07); }
+.nav-item .icon { font-size: 15px; width: 20px; text-align: center; flex-shrink: 0; }
+
+/* ── Content ─────────────────────────────────────────────────── */
+#content { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+.tab-panel { display: none; flex: 1; overflow-y: auto; flex-direction: column; }
+.tab-panel.active { display: flex; }
+
+/* ── Common components ───────────────────────────────────────── */
+.panel { padding: 14px 16px; }
+.groupbox { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 12px; }
+.groupbox-title { font-size: 11px; color: var(--text2); padding: 8px 12px 4px; border-bottom: 1px solid var(--border); font-weight: 600; letter-spacing: 0.05em; display: flex; align-items: center; gap: 6px; }
+.groupbox-body { padding: 10px 12px; }
+
+/* Buttons */
+.btn { display: inline-flex; align-items: center; gap: 5px; padding: 5px 12px; border-radius: var(--radius); border: none; cursor: pointer; font-size: 12px; font-family: var(--ui); font-weight: 500; transition: opacity 0.15s, transform 0.1s; white-space: nowrap; }
+.btn:active { transform: scale(0.97); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-primary { background: var(--accent); color: #000; }
+.btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+.btn-danger { background: var(--ng); color: #fff; }
+.btn-ok { background: var(--ok); color: #000; }
+.btn-purple { background: #7b4cdb; color: #fff; }
+.btn-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; padding: 8px 12px; }
+
+/* Inputs */
+input[type=text], input[type=url], input[type=number], input[type=password], textarea, select {
+  background: var(--surface2); border: 1px solid var(--border);
+  color: var(--text); border-radius: var(--radius);
+  padding: 5px 8px; font-size: 13px; font-family: var(--ui);
+  outline: none; width: 100%;
+}
+input:focus, textarea:focus, select:focus { border-color: var(--accent); }
+textarea { resize: vertical; min-height: 80px; }
+label { font-size: 12px; color: var(--text2); display: block; margin-bottom: 4px; }
+.field { margin-bottom: 10px; }
+.field-row { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+.field-row .field { flex: 1; min-width: 120px; }
+input[type=range] { accent-color: var(--accent); width: 100%; }
+input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; }
+.toggle-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 12px; }
+
+/* Progress */
+.progress-bar { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; margin: 4px 0; }
+.progress-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.3s; animation: prog-pulse 1.5s infinite; }
+@keyframes prog-pulse { 0%,100%{opacity:1} 50%{opacity:0.6} }
+
+/* Table */
+.data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.data-table th { background: var(--surface); color: var(--text2); padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--border); font-weight: 600; position: sticky; top: 0; z-index: 1; white-space: nowrap; }
+.data-table td { padding: 5px 8px; border-bottom: 1px solid rgba(42,63,88,0.5); }
+.data-table tr:hover td { background: var(--surface2); }
+.data-table tr.selected td { background: rgba(240,165,0,0.1); }
+.data-table .num { text-align: right; font-family: var(--mono); }
+.table-wrap { overflow: auto; max-height: 300px; }
+.table-wrap-flex { overflow: auto; flex: 1; }
+
+/* Log */
+.log-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 8px; font-family: var(--mono); font-size: 11px; color: var(--ok); height: 120px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; }
+
+/* Ribbon */
+.ribbon { display: flex; gap: 2px; align-items: center; padding: 4px 8px; background: var(--surface); border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.ribbon-btn { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 10px; border-radius: 4px; cursor: pointer; border: none; background: transparent; color: var(--text2); font-size: 10px; min-width: 52px; transition: all 0.15s; }
+.ribbon-btn:hover { background: var(--surface2); color: var(--text); }
+.ribbon-btn .icon { font-size: 18px; }
+.ribbon-sep { width: 1px; height: 36px; background: var(--border); margin: 0 4px; }
+
+/* Chat */
+.chat-messages { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.chat-bubble { max-width: 75%; padding: 8px 12px; border-radius: 12px; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+.chat-bubble.user { background: var(--accent); color: #000; align-self: flex-end; border-bottom-right-radius: 3px; }
+.chat-bubble.assistant { background: var(--surface2); color: var(--text); align-self: flex-start; border-bottom-left-radius: 3px; }
+.chat-role { font-size: 10px; color: var(--text2); margin-bottom: 2px; }
+.chat-input-row { display: flex; gap: 6px; padding: 8px 12px; border-top: 1px solid var(--border); }
+.chat-input-row textarea { min-height: 40px; max-height: 120px; }
+
+/* Canvas */
+#draw-canvas-wrap { flex: 1; overflow: auto; background: #0a1520; position: relative; cursor: crosshair; }
+#draw-canvas { display: block; }
+
+/* Color dot */
+.color-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+
+/* Mindmap */
+#mindmap-svg { width: 100%; min-height: 400px; }
+
+/* Tabs (sub within AI tab) */
+.sub-tabs { display: flex; border-bottom: 1px solid var(--border); }
+.sub-tab { padding: 6px 14px; font-size: 12px; color: var(--text2); cursor: pointer; border-bottom: 2px solid transparent; }
+.sub-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* Badge */
+.badge { display: inline-block; background: var(--accent); color: #000; border-radius: 10px; padding: 1px 7px; font-size: 10px; font-weight: 700; }
+.badge-ok { background: var(--ok); }
+.badge-ng { background: var(--ng); color: #fff; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* Empty state */
+.empty { display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text2); gap: 10px; padding: 40px; text-align: center; }
+.empty .empty-icon { font-size: 40px; opacity: 0.4; }
+
+/* Toast */
+#toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 8px 18px; border-radius: 20px; font-size: 12px; opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 9999; white-space: nowrap; }
+#toast.show { opacity: 1; }
+
+/* Spinner */
+.spinner { width: 18px; height: 18px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Detection overlay on canvas */
+.det-box { position: absolute; border: 1.5px solid; pointer-events: auto; cursor: pointer; }
+.det-label { position: absolute; top: -16px; left: 0; font-size: 9px; white-space: nowrap; padding: 1px 3px; font-family: var(--mono); }
+
+/* iPad landscape optimization */
+@media (max-width: 768px) {
+  :root { --sidebar-w: 52px; }
+  .nav-item .label { display: none; }
+  .nav-item { justify-content: center; padding: 10px 0; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- ── Title Bar ──────────────────────────────────────────────── -->
+<div id="titlebar">
+  <span class="logo">⚡ ELECTimate AI v13.7.1</span>
+  <span id="ai-usage">使用量: -</span>
+  <span class="status" id="status-bar">準備完了</span>
+</div>
+
+<div id="main">
+
+<!-- ── Sidebar ───────────────────────────────────────────────── -->
+<nav id="sidebar">
+  <div class="nav-item active" data-tab="est" onclick="switchTab('est',this)">
+    <span class="icon">📄</span><span class="label">積算実行</span>
+  </div>
+  <div class="nav-item" data-tab="price" onclick="switchTab('price',this)">
+    <span class="icon">💴</span><span class="label">単価マスター</span>
+  </div>
+  <div class="nav-item" data-tab="sym" onclick="switchTab('sym',this)">
+    <span class="icon">🔵</span><span class="label">記号パターン</span>
+  </div>
+  <div class="nav-item" data-tab="cad" onclick="switchTab('cad',this)">
+    <span class="icon">📁</span><span class="label">CADライブラリ</span>
+  </div>
+  <div class="nav-item" data-tab="img" onclick="switchTab('img',this)">
+    <span class="icon">🖼️</span><span class="label">画像PDF解析</span>
+  </div>
+  <div class="nav-item" data-tab="tune" onclick="switchTab('tune',this)">
+    <span class="icon">🎛️</span><span class="label">画像チューニング</span>
+  </div>
+  <div class="nav-item" data-tab="ai" onclick="switchTab('ai',this)">
+    <span class="icon">🤖</span><span class="label">Ollama解析</span>
+  </div>
+  <div class="nav-item" data-tab="chat" onclick="switchTab('chat',this)">
+    <span class="icon">💬</span><span class="label">AIチャット</span>
+  </div>
+  <div class="nav-item" data-tab="mind" onclick="switchTab('mind',this)">
+    <span class="icon">🗺️</span><span class="label">マインドマップ</span>
+  </div>
+  <div class="nav-item" data-tab="node" onclick="switchTab('node',this)">
+    <span class="icon">🔷</span><span class="label">ノード図面</span>
+  </div>
+  <div class="nav-item" data-tab="dqn" onclick="switchTab('dqn',this)">
+    <span class="icon">🧠</span><span class="label">AI戦略(DQN)</span>
+  </div>
+  <div class="nav-item" data-tab="learn" onclick="switchTab('learn',this)">
+    <span class="icon">📊</span><span class="label">学習データ</span>
+  </div>
+</nav>
+
+<!-- ── Content ───────────────────────────────────────────────── -->
+<div id="content">
+
+<!-- ①  積算実行 PDF/DXF -->
+<div class="tab-panel active" id="tab-est">
+  <div class="panel">
+    <div class="groupbox">
+      <div class="groupbox-title">📂 ファイル選択</div>
+      <div class="groupbox-body">
+        <div class="field-row">
+          <div class="field" style="flex:3">
+            <label>PDF / DXF ファイル</label>
+            <input type="text" id="est-filepath" placeholder="ファイルを選択してください" readonly>
+          </div>
+          <button class="btn btn-secondary" onclick="pickFile('est-filepath',['pdf','dxf'])">📂 選択</button>
+          <button class="btn btn-primary" onclick="runEstimate()" id="btn-estimate">⚡ 積算実行</button>
+          <button class="btn btn-purple" onclick="runAIEstimate()" id="btn-ai-estimate">🤖 AI積算実行</button>
+          <button class="btn btn-secondary" onclick="exportEstimateCSV()">⬇ CSV出力</button>
+        </div>
+        <div id="est-progress" style="display:none"><div class="progress-bar"><div class="progress-fill" style="width:60%"></div></div></div>
+      </div>
+    </div>
+
+    <div class="groupbox">
+      <div class="groupbox-title">
+        📋 積算結果
+        <span id="est-total" style="margin-left:auto;color:var(--accent);font-family:var(--mono);font-size:13px"></span>
+      </div>
+      <div class="table-wrap" style="max-height:260px">
+        <table class="data-table" id="est-table">
+          <thead><tr>
+            <th>カテゴリ</th><th>品名</th><th>仕様</th><th>単位</th>
+            <th class="num">数量</th><th class="num">単価(円)</th><th class="num">金額(円)</th>
+          </tr></thead>
+          <tbody id="est-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px">
+      <div class="groupbox" style="flex:1">
+        <div class="groupbox-title">📜 ログ</div>
+        <div class="groupbox-body" style="padding:0">
+          <div class="log-box" id="est-log"></div>
+        </div>
+      </div>
+      <div class="groupbox" style="flex:1">
+        <div class="groupbox-title">🤖 AI積算結果</div>
+        <div class="groupbox-body" style="padding:0">
+          <div class="log-box" id="est-ai-result" style="color:var(--text)"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ②  単価マスター -->
+<div class="tab-panel" id="tab-price">
+  <div class="panel" style="display:flex;flex-direction:column;height:100%">
+    <div class="btn-row" style="padding:0 0 10px 0">
+      <button class="btn btn-primary" onclick="showPriceDialog()">＋ 追加</button>
+      <button class="btn btn-secondary" onclick="editPriceSelected()">✏ 編集</button>
+      <button class="btn btn-danger" onclick="deletePriceSelected()">🗑 削除</button>
+      <button class="btn btn-secondary" onclick="importPriceCSV()">⬆ CSVインポート</button>
+      <button class="btn btn-secondary" onclick="exportPriceCSV()">⬇ CSVエクスポート</button>
+      <input type="text" id="price-search" placeholder="検索..." style="width:180px" oninput="renderPriceTable()">
+    </div>
+    <div class="table-wrap-flex">
+      <table class="data-table" id="price-table">
+        <thead><tr>
+          <th>ID</th><th>カテゴリ</th><th>品名</th><th>仕様</th>
+          <th>単位</th><th class="num">単価(円)</th><th>キーワード</th>
+        </tr></thead>
+        <tbody id="price-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ③  記号パターン -->
+<div class="tab-panel" id="tab-sym">
+  <div class="panel" style="display:flex;flex-direction:column;height:100%">
+    <p style="color:var(--text2);font-size:12px;margin-bottom:8px">DXF図面内の円/線/矩形パターンで設備記号を推定します。</p>
+    <div class="btn-row" style="padding:0 0 10px 0">
+      <button class="btn btn-primary" onclick="showSymDialog()">＋ 追加</button>
+      <button class="btn btn-secondary" onclick="editSymSelected()">✏ 編集</button>
+      <button class="btn btn-danger" onclick="deleteSymSelected()">🗑 削除</button>
+      <button class="btn btn-secondary" onclick="renderSymTable()">🔄 更新</button>
+    </div>
+    <div class="table-wrap-flex">
+      <table class="data-table" id="sym-table">
+        <thead><tr>
+          <th>ID</th><th>設備名</th><th>パターンタイプ</th><th>説明</th><th>プリセット</th>
+        </tr></thead>
+        <tbody id="sym-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ④  CADライブラリ -->
+<div class="tab-panel" id="tab-cad">
+  <div class="panel" style="display:flex;flex-direction:column;height:100%">
+    <div class="groupbox">
+      <div class="groupbox-title">📥 CADデータダウンロード/登録</div>
+      <div class="groupbox-body">
+        <div class="field-row">
+          <div class="field" style="flex:1"><input type="url" id="cad-url" value="https://" placeholder="URL (ZIP/DXF)"></div>
+          <button class="btn btn-secondary" onclick="cadDownloadURL()">🔗 URL/ZIP取込</button>
+          <button class="btn btn-secondary" onclick="cadImportLocal()">📂 ローカルDXF取込</button>
+        </div>
+      </div>
+    </div>
+    <div class="table-wrap-flex">
+      <table class="data-table" id="cad-table">
+        <thead><tr>
+          <th>ID</th><th>メーカー</th><th>型番</th><th>カテゴリ</th><th>機器名</th><th>ファイル名</th>
+        </tr></thead>
+        <tbody id="cad-tbody"></tbody>
+      </table>
+    </div>
+    <div class="btn-row" style="padding:10px 0 0 0">
+      <button class="btn btn-danger" onclick="cadDeleteSelected()">🗑 削除</button>
+      <button class="btn btn-secondary" style="margin-left:auto" onclick="renderCADTable()">🔄 更新</button>
+    </div>
+  </div>
+</div>
+
+<!-- ⑤  画像PDF解析・アノテーション -->
+<div class="tab-panel" id="tab-img" style="overflow:hidden">
+  <!-- Ribbon -->
+  <div class="ribbon">
+    <button class="ribbon-btn" onclick="pickImageFile()"><span class="icon">📂</span>ファイル選択</button>
+    <div class="ribbon-sep"></div>
+    <button class="ribbon-btn" onclick="startImageAnalysis()"><span class="icon">🔍</span>解析実行</button>
+    <button class="ribbon-btn" onclick="aiAnnotateSelected()"><span class="icon">🤖</span>AI注釈</button>
+    <div class="ribbon-sep"></div>
+    <button class="ribbon-btn" onclick="addManualDet()"><span class="icon">＋</span>手動追加</button>
+    <button class="ribbon-btn" onclick="editDetSelected()"><span class="icon">✏</span>編集</button>
+    <button class="ribbon-btn" onclick="deleteDetSelected()"><span class="icon">🗑</span>削除</button>
+    <div class="ribbon-sep"></div>
+    <button class="ribbon-btn" onclick="exportDetCSV()"><span class="icon">⬇</span>CSV出力</button>
+    <button class="ribbon-btn" onclick="applyLearning()"><span class="icon">🎓</span>学習適用</button>
+    <span style="margin-left:auto;font-size:11px;color:var(--text2)" id="img-page-info">ページ: -</span>
+    <button class="ribbon-btn" onclick="changePage(-1)"><span class="icon">◀</span></button>
+    <button class="ribbon-btn" onclick="changePage(1)"><span class="icon">▶</span></button>
+  </div>
+
+  <div style="display:flex;flex:1;overflow:hidden">
+    <!-- Canvas -->
+    <div id="draw-canvas-wrap" style="flex:1;position:relative;overflow:auto;background:#0a1520">
+      <canvas id="draw-canvas"></canvas>
+      <div id="det-overlay" style="position:absolute;top:0;left:0;pointer-events:none"></div>
+      <div id="img-empty" class="empty" style="position:absolute;inset:0">
+        <div class="empty-icon">🖼️</div>
+        <div>PDF / 画像 / DXF を選択して解析してください</div>
+      </div>
+    </div>
+
+    <!-- Right Panel -->
+    <div style="width:300px;flex-shrink:0;border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden">
+      <!-- Detection list -->
+      <div style="flex:1;overflow-y:auto;border-bottom:1px solid var(--border)">
+        <div style="padding:6px 8px;font-size:11px;color:var(--text2);border-bottom:1px solid var(--border);display:flex;align-items:center">
+          検出設備 <span id="det-count" class="badge" style="margin-left:6px">0</span>
+          <span id="img-ai-usage" style="margin-left:auto;font-size:10px;color:#4a8fc0"></span>
+        </div>
+        <div id="det-list" style="font-size:12px"></div>
+      </div>
+      <!-- Estimate sum -->
+      <div style="flex:1;overflow-y:auto;border-bottom:1px solid var(--border)">
+        <div style="padding:6px 8px;font-size:11px;color:var(--text2);border-bottom:1px solid var(--border);display:flex;justify-content:space-between">
+          <span>画像積算</span>
+          <span id="img-est-total" style="color:var(--accent);font-family:var(--mono)">¥0</span>
+        </div>
+        <div id="img-est-list" style="font-size:12px;padding:4px 0"></div>
+      </div>
+      <!-- Log -->
+      <div class="log-box" id="img-log" style="height:90px;border-radius:0;border:none;border-top:1px solid var(--border)"></div>
+    </div>
+  </div>
+  <!-- hidden file input -->
+  <input type="file" id="img-file-input" accept=".pdf,image/*,.dxf" style="display:none" onchange="handleImageFile(this)">
+</div>
+
+<!-- ⑥  画像チューニング -->
+<div class="tab-panel" id="tab-tune">
+  <div class="panel">
+    <div style="display:flex;gap:12px;flex-wrap:wrap">
+      <div class="groupbox" style="flex:1;min-width:280px">
+        <div class="groupbox-title">🎛️ 解析設定</div>
+        <div class="groupbox-body">
+          <div class="field">
+            <label>スキャンステップ: <b id="lbl-scan">4</b> px</label>
+            <input type="range" min="1" max="16" value="4" id="s-scan" oninput="document.getElementById('lbl-scan').textContent=this.value">
+          </div>
+          <div class="field">
+            <label>PDF拡大率: <b id="lbl-pdf">1.25</b>x</label>
+            <input type="range" min="0.5" max="4" step="0.25" value="1.25" id="s-pdf" oninput="document.getElementById('lbl-pdf').textContent=parseFloat(this.value).toFixed(2)">
+          </div>
+          <div class="field">
+            <label>クラスター距離: <b id="lbl-cd">6</b> px</label>
+            <input type="range" min="2" max="30" value="6" id="s-cd" oninput="document.getElementById('lbl-cd').textContent=this.value">
+          </div>
+          <div class="field">
+            <label>最小クラスター点数: <b id="lbl-cp">3</b></label>
+            <input type="range" min="1" max="10" value="3" id="s-cp" oninput="document.getElementById('lbl-cp').textContent=this.value">
+          </div>
+          <div class="field-row">
+            <div class="field"><label>最小W px</label><input type="number" id="s-minw" value="4" min="1"></div>
+            <div class="field"><label>最小H px</label><input type="number" id="s-minh" value="4" min="1"></div>
+            <div class="field"><label>最大W px</label><input type="number" id="s-maxw" value="55" min="1"></div>
+            <div class="field"><label>最大H px</label><input type="number" id="s-maxh" value="55" min="1"></div>
+          </div>
+          <div class="toggle-row"><input type="checkbox" id="s-excl" checked><label for="s-excl">凡例エリア除外</label></div>
+          <div class="field">
+            <label>右端除外率: <b id="lbl-lr">24</b>%</label>
+            <input type="range" min="0" max="50" value="24" id="s-lr" oninput="document.getElementById('lbl-lr').textContent=this.value">
+          </div>
+          <div class="field">
+            <label>下部除外率: <b id="lbl-br">28</b>%</label>
+            <input type="range" min="0" max="50" value="28" id="s-br" oninput="document.getElementById('lbl-br').textContent=this.value">
+          </div>
+          <div class="field">
+            <label>最大検出数: <b id="lbl-md">140</b></label>
+            <input type="range" min="10" max="500" value="140" id="s-md" oninput="document.getElementById('lbl-md').textContent=this.value">
+          </div>
+          <button class="btn btn-primary" onclick="saveTuningSettings()">💾 設定保存</button>
+        </div>
+      </div>
+      <div class="groupbox" style="flex:1;min-width:280px">
+        <div class="groupbox-title">🎨 色ルール編集</div>
+        <div class="groupbox-body" id="color-rules-ui"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ⑦  Ollama解析 / AI設定 -->
+<div class="tab-panel" id="tab-ai">
+  <div class="panel">
+    <div class="groupbox">
+      <div class="groupbox-title">🔌 AI接続設定</div>
+      <div class="groupbox-body">
+        <div class="field-row">
+          <div class="field"><label>使用AI</label>
+            <select id="ai-provider" onchange="onProviderChange()">
+              <option value="ollama">Ollama (ローカル)</option>
+              <option value="openai">OpenAI</option>
+              <option value="anthropic">Anthropic Claude</option>
+              <option value="custom_openai">OpenAI互換API</option>
+            </select>
+          </div>
+          <button class="btn btn-primary" onclick="saveAISettings()">💾 AI設定保存</button>
+          <button class="btn btn-secondary" onclick="testAI()">🧪 テスト接続</button>
+        </div>
+        <!-- Ollama -->
+        <div id="section-ollama">
+          <div class="field-row">
+            <div class="field" style="flex:2"><label>Ollama URL</label><input type="url" id="ai-ollama-url" value="http://127.0.0.1:11434"></div>
+            <div class="field" style="flex:2"><label>モデル</label><input type="text" id="ai-ollama-model" value="deepseek-r1:8b"></div>
+            <button class="btn btn-secondary" style="align-self:flex-end" onclick="refreshOllamaModels()">📋 一覧取得</button>
+          </div>
+        </div>
+        <!-- OpenAI -->
+        <div id="section-openai" style="display:none">
+          <div class="field-row">
+            <div class="field" style="flex:2"><label>OpenAI APIキー</label><input type="password" id="ai-openai-key" placeholder="sk-..."></div>
+            <div class="field" style="flex:2"><label>モデル</label><input type="text" id="ai-openai-model" value="gpt-4o-mini"></div>
+            <button class="btn btn-secondary" style="align-self:flex-end" onclick="refreshOpenAIModels()">📋 一覧取得</button>
+          </div>
+        </div>
+        <!-- Anthropic -->
+        <div id="section-anthropic" style="display:none">
+          <div class="field-row">
+            <div class="field" style="flex:2"><label>Anthropic APIキー</label><input type="password" id="ai-anthropic-key" placeholder="sk-ant-..."></div>
+            <div class="field" style="flex:2"><label>モデル</label>
+              <select id="ai-anthropic-model">
+                <option>claude-sonnet-4-6</option>
+                <option>claude-opus-4-6</option>
+                <option>claude-haiku-4-5-20251001</option>
+                <option>claude-3-5-sonnet-20241022</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <!-- Custom OpenAI -->
+        <div id="section-custom" style="display:none">
+          <div class="field-row">
+            <div class="field" style="flex:2"><label>Base URL</label><input type="url" id="ai-custom-url" value="http://localhost:8000/v1"></div>
+            <div class="field"><label>APIキー</label><input type="password" id="ai-custom-key" placeholder="省略可"></div>
+            <div class="field"><label>モデル</label><input type="text" id="ai-custom-model" value="local-model"></div>
+          </div>
+        </div>
+
+        <div style="margin-top:8px;display:flex;gap:16px;flex-wrap:wrap">
+          <div class="toggle-row"><input type="checkbox" id="ai-use-langmem" checked><label for="ai-use-langmem">LangMem記憶使用</label></div>
+          <div class="field-row" style="padding:0"><label style="white-space:nowrap;color:var(--text2)">記憶TopK</label>
+            <input type="number" id="ai-topk" value="6" style="width:60px">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="groupbox">
+      <div class="groupbox-title">✨ AI生成: 図面記号 / 2Dファミリ</div>
+      <div class="groupbox-body">
+        <div class="field-row">
+          <div class="field"><label>名称</label><input type="text" id="gen-name" value="LEDダウンライト"></div>
+          <div class="field"><label>カテゴリ</label>
+            <select id="gen-cat">
+              <option>照明器具</option><option>コンセント</option><option>スイッチ</option>
+              <option>分電盤</option><option>配線</option><option>空調</option><option>その他</option>
+            </select>
+          </div>
+          <div class="field"><label>種類</label>
+            <select id="gen-kind">
+              <option>図面記号</option><option>2Dファミリ</option><option>JWCAD外部図形</option>
+              <option>DXFブロック</option><option>SVG記号</option>
+            </select>
+          </div>
+        </div>
+        <div class="btn-row" style="padding:4px 0">
+          <button class="btn btn-primary" onclick="generateSymbolAI()">🤖 AIで図面記号を生成</button>
+          <button class="btn btn-secondary" onclick="generateFamilyAI()">📐 AIで2Dファミリを生成</button>
+        </div>
+        <div class="log-box" id="gen-result" style="color:var(--text);height:100px"></div>
+      </div>
+    </div>
+
+    <div class="groupbox">
+      <div class="groupbox-title">🔬 解析プロンプト</div>
+      <div class="groupbox-body">
+        <textarea id="ai-prompt" style="height:80px">現在の積算結果・画像検出結果について、過検出を減らす調整案と積算上の注意点を提案してください。</textarea>
+        <div class="btn-row" style="padding:6px 0">
+          <button class="btn btn-secondary" onclick="appendSummaryToPrompt()">📋 結果をプロンプトに追加</button>
+          <button class="btn btn-primary" onclick="runAIPrompt()">▶ 選択AIで解析実行</button>
+          <span id="ai-running-ind" style="display:none"><span class="spinner"></span></span>
+        </div>
+        <div class="log-box" id="ai-result-box" style="color:var(--text);height:200px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ⑧  AIチャット -->
+<div class="tab-panel" id="tab-chat" style="overflow:hidden">
+  <div style="padding:6px 10px;border-bottom:1px solid var(--border);display:flex;gap:6px;align-items:center;background:var(--surface);flex-shrink:0">
+    <span style="font-size:11px;color:var(--text2)">システム:</span>
+    <input type="text" id="chat-system" value="あなたは電気設備の積算を支援するAIアシスタントです。" style="flex:1;font-size:12px">
+    <button class="btn btn-secondary" onclick="appendEstimateToChat()">📋 結果追加</button>
+    <button class="btn btn-danger" onclick="clearChat()">🗑 クリア</button>
+  </div>
+  <div class="chat-messages" id="chat-messages"></div>
+  <div class="chat-input-row">
+    <textarea id="chat-input" placeholder="メッセージを入力... (Ctrl+Enter で送信)" style="flex:1" onkeydown="if((e=event).ctrlKey&&e.key==='Enter')sendChat()"></textarea>
+    <button class="btn btn-primary" onclick="sendChat()" id="btn-chat-send">送信 ▶</button>
+  </div>
+</div>
+
+<!-- ⑨  ToDoマインドマップAI -->
+<div class="tab-panel" id="tab-mind">
+  <div class="panel">
+    <div class="groupbox">
+      <div class="groupbox-title">🗺️ AIマインドマップ生成</div>
+      <div class="groupbox-body">
+        <div class="field-row">
+          <div class="field" style="flex:3"><label>タスク/工事名</label><input type="text" id="mind-task" value="電灯コンセント工事"></div>
+          <div class="field"><label>数量</label><input type="number" id="mind-qty" value="1" min="1"></div>
+          <button class="btn btn-primary" style="align-self:flex-end" onclick="generateMindmap()">🤖 AIで生成</button>
+          <button class="btn btn-secondary" style="align-self:flex-end" onclick="mindmapToEstimate()">📋 積算に変換</button>
+        </div>
+        <div id="mind-spinner" style="display:none;padding:6px"><span class="spinner"></span> 生成中...</div>
+      </div>
+    </div>
+    <div class="groupbox">
+      <div class="groupbox-title">🌳 マインドマップ</div>
+      <div class="groupbox-body" id="mindmap-container" style="overflow:auto;min-height:300px">
+        <div class="empty"><div class="empty-icon">🗺️</div><div>AIでマインドマップを生成してください</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ⑩  ノード図面作成 -->
+<div class="tab-panel" id="tab-node" style="overflow:hidden">
+  <div class="ribbon">
+    <button class="ribbon-btn" onclick="addVNode('symbol')"><span class="icon">🔵</span>記号追加</button>
+    <button class="ribbon-btn" onclick="addVNode('cable')"><span class="icon">〰</span>ケーブル追加</button>
+    <button class="ribbon-btn" onclick="addVNode('panel')"><span class="icon">⬜</span>盤追加</button>
+    <div class="ribbon-sep"></div>
+    <button class="ribbon-btn" onclick="editVNodeSelected()"><span class="icon">✏</span>編集</button>
+    <button class="ribbon-btn" onclick="deleteVNodeSelected()"><span class="icon">🗑</span>削除</button>
+    <button class="ribbon-btn" onclick="connectNodes()"><span class="icon">🔗</span>接続</button>
+    <div class="ribbon-sep"></div>
+    <button class="ribbon-btn" onclick="clearNodeCanvas()"><span class="icon">🧹</span>クリア</button>
+    <button class="ribbon-btn" onclick="exportNodeSVG()"><span class="icon">⬇</span>SVG出力</button>
+  </div>
+  <div style="flex:1;position:relative;overflow:hidden;background:#0a1520" id="node-canvas-wrap">
+    <svg id="node-svg" style="width:100%;height:100%;cursor:default"></svg>
+    <div class="empty" id="node-empty" style="position:absolute;inset:0;pointer-events:none">
+      <div class="empty-icon">🔷</div>
+      <div>上のツールバーでノードを追加してください</div>
+    </div>
+  </div>
+</div>
+
+<!-- ⑪  AI解析戦略(DQN) -->
+<div class="tab-panel" id="tab-dqn">
+  <div class="panel">
+    <div style="display:flex;gap:12px;flex-wrap:wrap">
+      <div class="groupbox" style="flex:1;min-width:280px">
+        <div class="groupbox-title">🧠 DQN設定</div>
+        <div class="groupbox-body">
+          <div class="toggle-row"><input type="checkbox" id="dqn-en" checked><label for="dqn-en">DQN解析戦略を有効にする</label></div>
+          <div class="field">
+            <label>探索率(ε): <b id="lbl-eps">0.15</b></label>
+            <input type="range" min="0" max="1" step="0.01" value="0.15" id="dqn-eps" oninput="document.getElementById('lbl-eps').textContent=parseFloat(this.value).toFixed(2)">
+          </div>
+          <div class="field">
+            <label>学習率: <b id="lbl-lr2">0.08</b></label>
+            <input type="range" min="0.01" max="1" step="0.01" value="0.08" id="dqn-lr" oninput="document.getElementById('lbl-lr2').textContent=parseFloat(this.value).toFixed(2)">
+          </div>
+          <div class="field">
+            <label>割引率(γ): <b id="lbl-gamma">0.90</b></label>
+            <input type="range" min="0" max="1" step="0.01" value="0.90" id="dqn-gamma" oninput="document.getElementById('lbl-gamma').textContent=parseFloat(this.value).toFixed(2)">
+          </div>
+          <div style="margin:8px 0;font-size:12px;color:var(--text2)">最後のアクション: <span id="dqn-last-action" style="color:var(--accent)">なし</span></div>
+          <div class="btn-row" style="padding:0">
+            <button class="btn btn-primary" onclick="saveDQNSettings()">💾 保存</button>
+            <button class="btn btn-ok" onclick="recordReward(1)">＋1 報酬</button>
+            <button class="btn btn-danger" onclick="recordReward(-1)">－1 報酬</button>
+            <button class="btn btn-secondary" onclick="renderDQNSummary()">🔄 更新</button>
+          </div>
+        </div>
+      </div>
+      <div class="groupbox" style="flex:2;min-width:300px">
+        <div class="groupbox-title">📊 戦略サマリ</div>
+        <div class="table-wrap" style="max-height:300px">
+          <table class="data-table" id="dqn-table">
+            <thead><tr><th>アクション</th><th class="num">試行回数</th><th class="num">平均報酬</th><th>最終使用</th></tr></thead>
+            <tbody id="dqn-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ⑫  学習データ -->
+<div class="tab-panel" id="tab-learn">
+  <div class="panel" style="display:flex;flex-direction:column;height:100%">
+    <div class="btn-row" style="padding:0 0 10px 0">
+      <span style="font-size:14px;font-weight:600">アノテーション学習データ</span>
+      <button class="btn btn-secondary" onclick="renderLearnTable()">🔄 更新</button>
+      <button class="btn btn-secondary" onclick="exportLearnCSV()">⬇ CSVエクスポート</button>
+      <div id="learn-stats" style="margin-left:auto;display:flex;gap:16px;font-size:12px"></div>
+    </div>
+    <div class="table-wrap-flex">
+      <table class="data-table" id="learn-table">
+        <thead><tr>
+          <th>日時</th><th>ファイル</th><th>最終答え</th><th>LLM答え</th><th>正解</th><th>メモ</th>
+        </tr></thead>
+        <tbody id="learn-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+</div><!-- #content -->
+</div><!-- #main -->
+</div><!-- #app -->
+
+<!-- ── Toast ──────────────────────────────────────────────────── -->
+<div id="toast"></div>
+
+<!-- ── Modals ──────────────────────────────────────────────────── -->
+<div id="modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center">
+  <div id="modal-box" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:20px;min-width:320px;max-width:500px;width:90%">
+    <div id="modal-title" style="font-size:15px;font-weight:700;margin-bottom:14px;color:var(--accent)"></div>
+    <div id="modal-body"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+      <button class="btn btn-secondary" onclick="closeModal()">キャンセル</button>
+      <button class="btn btn-primary" id="modal-ok" onclick="modalOK()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Hidden file input ──────────────────────────────────────── -->
+<input type="file" id="global-file-input" style="display:none">
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+//  ELECTimate AI – Full JavaScript Implementation
+// ═══════════════════════════════════════════════════════════════
+
+// ── IndexedDB Storage ─────────────────────────────────────────
+const DB_NAME = 'electimate', DB_VER = 1;
+let idb = null;
+
+function openIDB() {
+  return new Promise((res, rej) => {
+    const req = indexedDB.open(DB_NAME, DB_VER);
+    req.onupgradeneeded = e => {
+      const db = e.target.result;
+      ['unit_prices','symbol_patterns','cad_library','color_rules',
+       'annotation_samples','dqn_summary','settings'].forEach(store => {
+        if (!db.objectStoreNames.contains(store))
+          db.createObjectStore(store, {keyPath:'id', autoIncrement:true});
+      });
+    };
+    req.onsuccess = e => { idb = e.target.result; res(idb); };
+    req.onerror = rej;
+  });
+}
+
+function dbGet(store) {
+  return new Promise((res, rej) => {
+    const tx = idb.transaction(store, 'readonly');
+    const req = tx.objectStore(store).getAll();
+    req.onsuccess = () => res(req.result);
+    req.onerror = rej;
+  });
+}
+
+function dbPut(store, obj) {
+  return new Promise((res, rej) => {
+    const tx = idb.transaction(store, 'readwrite');
+    const req = tx.objectStore(store).put(obj);
+    req.onsuccess = () => res(req.result);
+    req.onerror = rej;
+  });
+}
+
+function dbDelete(store, id) {
+  return new Promise((res, rej) => {
+    const tx = idb.transaction(store, 'readwrite');
+    const req = tx.objectStore(store).delete(id);
+    req.onsuccess = res; req.onerror = rej;
+  });
+}
+
+function getSetting(key, def='') {
+  const s = localStorage.getItem('electimate_' + key);
+  return s !== null ? s : def;
+}
+function setSetting(key, val) { localStorage.setItem('electimate_' + key, val); }
+
+// ── App State ────────────────────────────────────────────────
+const S = {
+  unitPrices: [],
+  symbolPatterns: [],
+  cadLibrary: [],
+  colorRules: [],
+  annotationSamples: [],
+  dqnSummary: [],
+  estimateRows: [],
+  imageDetections: [],
+  imagePages: [],          // ImageData or blob URLs
+  currentPage: 1,
+  selectedDetId: null,
+  selectedPriceId: null,
+  selectedSymId: null,
+  selectedCADId: null,
+  chatHistory: [],
+  mindmapData: null,
+  vnodes: [],
+  vedges: [],
+  selectedVNodeId: null,
+  previewScale: 1.0,
+  imageFilePath: '',
+  aiUsage: {},
+};
+
+// ── Default Data ─────────────────────────────────────────────
+const DEFAULT_PRICES = [
+  {category:'照明器具',itemName:'LEDダウンライト',spec:'埋込型 φ150',unit:'台',unitPrice:12000,keywords:'ダウンライト,DL,ＤＬ,purple'},
+  {category:'照明器具',itemName:'LEDベースライト',spec:'埋込型 40形',unit:'台',unitPrice:15000,keywords:'ベースライト,BL,ＢＬ,yellow'},
+  {category:'照明器具',itemName:'非常灯',spec:'LED 20形',unit:'台',unitPrice:28000,keywords:'非常灯,emergency'},
+  {category:'照明器具',itemName:'誘導灯',spec:'LED 避難口',unit:'台',unitPrice:25000,keywords:'誘導灯,exit'},
+  {category:'コンセント',itemName:'コンセント',spec:'2P 15A 接地極付',unit:'個',unitPrice:3500,keywords:'コンセント,CO,ＣＯ,green'},
+  {category:'コンセント',itemName:'防水コンセント',spec:'2P 15A',unit:'個',unitPrice:6500,keywords:'防水コンセント'},
+  {category:'スイッチ',itemName:'片切スイッチ',spec:'15A 埋込',unit:'個',unitPrice:2200,keywords:'スイッチ,SW,ＳＷ,blue,cyan'},
+  {category:'スイッチ',itemName:'3路スイッチ',spec:'15A 埋込',unit:'個',unitPrice:2800,keywords:'3路スイッチ'},
+  {category:'分電盤',itemName:'分電盤',spec:'20回路 壁埋込',unit:'面',unitPrice:85000,keywords:'分電盤,DB,ＤＢ,red'},
+  {category:'分電盤',itemName:'主配電盤',spec:'750A',unit:'面',unitPrice:450000,keywords:'主配電盤,MDB,ＭＤＢ'},
+  {category:'配線',itemName:'VVF',spec:'2.0-2C',unit:'m',unitPrice:250,keywords:'VVF,2.0-2C'},
+  {category:'配線',itemName:'VVF',spec:'2.0-3C',unit:'m',unitPrice:320,keywords:'VVF,2.0-3C'},
+  {category:'配線',itemName:'CV',spec:'60sq-3C',unit:'m',unitPrice:2400,keywords:'CV,60sq'},
+  {category:'空調',itemName:'換気扇',spec:'φ100',unit:'台',unitPrice:18000,keywords:'換気扇,VF,ＶＦ'},
+  {category:'空調',itemName:'エアコン',spec:'5.0kW',unit:'台',unitPrice:180000,keywords:'エアコン,AC,ＡＣ'},
+  {category:'その他',itemName:'未分類設備',spec:'画像記号',unit:'個',unitPrice:0,keywords:'unknown,未分類'},
+];
+
+const DEFAULT_SYMBOLS = [
+  {name:'ダウンライト',patternType:'simple_circle',description:'単純な円形記号',preset:true,patternJSON:'{"radius_min":40,"radius_max":120}'},
+  {name:'ベースライト',patternType:'simple_circle',description:'大きな円形記号',preset:true,patternJSON:'{"radius_min":120,"radius_max":220}'},
+  {name:'コンセント',patternType:'circle_with_line',description:'円+線',preset:true,patternJSON:'{"radius_min":30,"radius_max":90}'},
+  {name:'スイッチ',patternType:'circle_with_line',description:'円+線',preset:true,patternJSON:'{"radius_min":30,"radius_max":90}'},
+  {name:'分電盤',patternType:'rectangle_with_cross',description:'矩形+×印',preset:true,patternJSON:'{"width_min":80,"width_max":220}'},
+];
+
+const DEFAULT_COLOR_RULES = [
+  {colorName:'purple',equipment:'LEDダウンライト',rMin:120,rMax:255,gMin:0,gMax:150,bMin:120,bMax:255,enabled:true},
+  {colorName:'yellow',equipment:'LEDベースライト',rMin:160,rMax:255,gMin:125,gMax:255,bMin:0,bMax:140,enabled:true},
+  {colorName:'green',equipment:'コンセント',rMin:0,rMax:150,gMin:100,gMax:255,bMin:0,bMax:160,enabled:true},
+  {colorName:'cyan',equipment:'片切スイッチ',rMin:0,rMax:130,gMin:120,gMax:255,bMin:120,bMax:255,enabled:true},
+  {colorName:'blue',equipment:'片切スイッチ',rMin:0,rMax:120,gMin:0,gMax:170,bMin:120,bMax:255,enabled:true},
+  {colorName:'red',equipment:'分電盤',rMin:150,rMax:255,gMin:0,gMax:140,bMin:0,bMax:140,enabled:true},
+];
+
+const COLOR_MAP = {purple:'#9b59b6',yellow:'#f1c40f',green:'#2ecc71',cyan:'#1abc9c',blue:'#3498db',red:'#e74c3c',orange:'#e67e22'};
+
+// ── Init ─────────────────────────────────────────────────────
+async function init() {
+  await openIDB();
+  // Load or seed data
+  S.unitPrices = await dbGet('unit_prices');
+  if (!S.unitPrices.length) { for (const p of DEFAULT_PRICES) await dbPut('unit_prices', {...p}); S.unitPrices = await dbGet('unit_prices'); }
+  S.symbolPatterns = await dbGet('symbol_patterns');
+  if (!S.symbolPatterns.length) { for (const s of DEFAULT_SYMBOLS) await dbPut('symbol_patterns', {...s}); S.symbolPatterns = await dbGet('symbol_patterns'); }
+  S.colorRules = await dbGet('color_rules');
+  if (!S.colorRules.length) { for (const r of DEFAULT_COLOR_RULES) await dbPut('color_rules', {...r}); S.colorRules = await dbGet('color_rules'); }
+  S.cadLibrary = await dbGet('cad_library');
+  S.annotationSamples = await dbGet('annotation_samples');
+  S.dqnSummary = await dbGet('dqn_summary');
+
+  // Restore AI settings
+  document.getElementById('ai-ollama-url').value = getSetting('ollama_url','http://127.0.0.1:11434');
+  document.getElementById('ai-ollama-model').value = getSetting('ollama_model','deepseek-r1:8b');
+  document.getElementById('ai-openai-key').value = getSetting('openai_key','');
+  document.getElementById('ai-openai-model').value = getSetting('openai_model','gpt-4o-mini');
+  document.getElementById('ai-anthropic-key').value = getSetting('anthropic_key','');
+  document.getElementById('ai-provider').value = getSetting('ai_provider','ollama');
+  onProviderChange();
+
+  renderPriceTable(); renderSymTable(); renderCADTable(); renderColorRulesUI();
+  renderLearnTable(); renderDQNSummary();
+  setStatus('準備完了');
+}
+
+// ── Tab switching ─────────────────────────────────────────────
+function switchTab(id, el) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  el.classList.add('active');
+}
+
+// ── Status / Toast ────────────────────────────────────────────
+function setStatus(msg) { document.getElementById('status-bar').textContent = msg; }
+function toast(msg, dur=2500) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), dur);
+}
+function updateAIUsage(u={}) {
+  S.aiUsage = u;
+  const msg = u.provider ? `${u.provider}/${u.model} in=${u.in||0} out=${u.out||0}` : '-';
+  document.getElementById('ai-usage').textContent = '使用量: ' + msg;
+  const el = document.getElementById('img-ai-usage');
+  if (el) el.textContent = msg;
+}
+
+// ── AI Client ─────────────────────────────────────────────────
+function getAISnap() {
+  return {
+    provider: document.getElementById('ai-provider').value,
+    ollamaURL: document.getElementById('ai-ollama-url').value,
+    ollamaModel: document.getElementById('ai-ollama-model').value,
+    openAIKey: document.getElementById('ai-openai-key').value,
+    openAIModel: document.getElementById('ai-openai-model').value,
+    anthropicKey: document.getElementById('ai-anthropic-key').value,
+    anthropicModel: document.getElementById('ai-anthropic-model').value,
+    customURL: document.getElementById('ai-custom-url').value,
+    customKey: document.getElementById('ai-custom-key').value,
+    customModel: document.getElementById('ai-custom-model').value,
+  };
+}
+
+async function aiGenerate(prompt, systemPrompt='', history=[]) {
+  const s = getAISnap();
+  if (s.provider === 'ollama') return await aiOllama(prompt, s);
+  if (s.provider === 'openai') return await aiOpenAI(prompt, systemPrompt, history, s);
+  if (s.provider === 'anthropic') return await aiAnthropic(prompt, systemPrompt, history, s);
+  if (s.provider === 'custom_openai') return await aiCustom(prompt, systemPrompt, history, s);
+  throw new Error('プロバイダー未設定');
+}
+
+async function aiOllama(prompt, s) {
+  const res = await fetch(s.ollamaURL + '/api/generate', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({model: s.ollamaModel, prompt, stream:false}),
+    signal: AbortSignal.timeout(120000)
+  });
+  if (!res.ok) throw new Error('Ollama: ' + res.status);
+  const d = await res.json();
+  updateAIUsage({provider:'ollama',model:s.ollamaModel,in:d.prompt_eval_count||0,out:d.eval_count||0});
+  return d.response || '';
+}
+
+async function aiOpenAI(prompt, system='', history=[], s) {
+  const msgs = [];
+  if (system) msgs.push({role:'system',content:system});
+  msgs.push(...history);
+  msgs.push({role:'user',content:prompt});
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+s.openAIKey},
+    body: JSON.stringify({model:s.openAIModel, messages:msgs, max_tokens:2048})
+  });
+  const d = await res.json();
+  if (d.error) throw new Error(d.error.message);
+  updateAIUsage({provider:'openai',model:s.openAIModel,in:d.usage?.prompt_tokens||0,out:d.usage?.completion_tokens||0});
+  return d.choices?.[0]?.message?.content || '';
+}
+
+async function aiAnthropic(prompt, system='', history=[], s) {
+  const msgs = [...history, {role:'user',content:prompt}];
+  const body = {model:s.anthropicModel, max_tokens:2048, messages:msgs};
+  if (system) body.system = system;
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method:'POST',
+    headers:{'Content-Type':'application/json','x-api-key':s.anthropicKey,'anthropic-version':'2023-06-01'},
+    body: JSON.stringify(body)
+  });
+  const d = await res.json();
+  if (d.error) throw new Error(d.error.message);
+  updateAIUsage({provider:'anthropic',model:s.anthropicModel,in:d.usage?.input_tokens||0,out:d.usage?.output_tokens||0});
+  return d.content?.[0]?.text || '';
+}
+
+async function aiCustom(prompt, system='', history=[], s) {
+  const msgs = [];
+  if (system) msgs.push({role:'system',content:system});
+  msgs.push(...history, {role:'user',content:prompt});
+  const base = s.customURL.replace(/\/+$/,'');
+  const res = await fetch(base + '/chat/completions', {
+    method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+(s.customKey||'none')},
+    body: JSON.stringify({model:s.customModel, messages:msgs, max_tokens:2048})
+  });
+  const d = await res.json();
+  if (d.error) throw new Error(d.error.message);
+  return d.choices?.[0]?.message?.content || '';
+}
+
+function onProviderChange() {
+  const v = document.getElementById('ai-provider').value;
+  ['ollama','openai','anthropic','custom'].forEach(id => {
+    const el = document.getElementById('section-' + id);
+    if(el) el.style.display = (id===v||(id==='custom'&&v==='custom_openai')) ? '' : 'none';
+  });
+}
+
+// ── File picking helper ───────────────────────────────────────
+let _fileCB = null;
+function pickFile(targetId, exts=[]) {
+  const inp = document.getElementById('global-file-input');
+  inp.accept = exts.map(e=>'.'+e).join(',');
+  inp.onchange = e => {
+    const f = e.target.files[0]; if(!f) return;
+    if (targetId) document.getElementById(targetId).value = f.name;
+    if (_fileCB) _fileCB(f);
+    inp.value='';
+  };
+  inp.click();
+}
+
+// ════════════════════════════════════════════════════════════
+//  TAB ①  積算実行
+// ════════════════════════════════════════════════════════════
+let estFile = null;
+
+function pickFile_est() {
+  _fileCB = f => { estFile = f; document.getElementById('est-filepath').value = f.name; };
+  pickFile('est-filepath', ['pdf','dxf','txt']);
+}
+document.getElementById('btn-estimate').addEventListener('click', ()=>{}, false);
+document.querySelector('[onclick="pickFile(\'est-filepath\',[\'pdf\',\'dxf\'])"]').onclick = pickFile_est;
+
+async function runEstimate() {
+  if (!estFile) { toast('ファイルを選択してください'); return; }
+  document.getElementById('est-progress').style.display='';
+  document.getElementById('est-log').textContent = '';
+  S.estimateRows = [];
+  renderEstTable();
+  log_est('積算開始: ' + estFile.name);
+  try {
+    const text = await readFileAsText(estFile);
+    log_est('テキスト抽出: ' + text.length + '文字');
+    S.estimateRows = matchTextToPrices(text);
+    renderEstTable();
+    log_est('積算完了: ' + S.estimateRows.length + '件');
+    setStatus('積算完了 ' + S.estimateRows.length + '件');
+  } catch(e) { log_est('エラー: ' + e.message); }
+  document.getElementById('est-progress').style.display='none';
+}
+
+function matchTextToPrices(text) {
+  const counts = {};
+  for (const p of S.unitPrices) {
+    const kws = p.keywords.split(',').map(k=>k.trim()).filter(Boolean);
+    for (const kw of kws) {
+      if (text.toLowerCase().includes(kw.toLowerCase())) {
+        const key = p.id;
+        if (!counts[key]) counts[key] = {price:p, qty:0};
+        // 簡易数量推定: キーワード出現回数
+        const re = new RegExp(escapeRE(kw), 'gi');
+        const m = text.match(re);
+        counts[key].qty = Math.max(counts[key].qty, m ? m.length : 1);
+        break;
+      }
+    }
+  }
+  return Object.values(counts).map(({price:p, qty}) => ({
+    category:p.category, itemName:p.itemName, spec:p.spec,
+    unit:p.unit, quantity:qty, unitPrice:p.unitPrice,
+    totalPrice:qty*p.unitPrice
+  }));
+}
+
+function renderEstTable() {
+  const tbody = document.getElementById('est-tbody');
+  let total = 0;
+  tbody.innerHTML = S.estimateRows.map(r => {
+    total += r.totalPrice;
+    return `<tr>
+      <td>${r.category}</td><td>${r.itemName}</td><td>${r.spec}</td><td>${r.unit}</td>
+      <td class="num">${r.quantity}</td>
+      <td class="num">${r.unitPrice.toLocaleString()}</td>
+      <td class="num" style="color:var(--accent)">${r.totalPrice.toLocaleString()}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('est-total').textContent = '合計: ¥' + total.toLocaleString();
+}
+
+function log_est(msg) {
+  const el = document.getElementById('est-log');
+  el.textContent += msg + '\n';
+  el.scrollTop = el.scrollHeight;
+}
+
+async function runAIEstimate() {
+  if (!estFile) { toast('ファイルを選択してください'); return; }
+  document.getElementById('est-ai-result').textContent = 'AI積算中...';
+  try {
+    const summary = JSON.stringify(S.estimateRows.map(r=>({item:r.itemName,qty:r.quantity,total:r.totalPrice})));
+    const prompt = `電気設備図面の積算結果です。設備ごとの数量・金額を確認し、不足・過剰があれば指摘してください。\n${summary}`;
+    const ans = await aiGenerate(prompt);
+    document.getElementById('est-ai-result').textContent = ans;
+  } catch(e) { document.getElementById('est-ai-result').textContent = 'エラー: ' + e.message; }
+}
+
+function exportEstimateCSV() {
+  const hdr = 'カテゴリ,品名,仕様,単位,数量,単価(円),金額(円)';
+  const rows = S.estimateRows.map(r=>`${r.category},${r.itemName},${r.spec},${r.unit},${r.quantity},${r.unitPrice},${r.totalPrice}`);
+  downloadText([hdr,...rows].join('\n'), 'estimate_result.csv', 'text/csv');
+}
+
+// ════════════════════════════════════════════════════════════
+//  TAB ②  単価マスター
+// ════════════════════════════════════════════════════════════
+function renderPriceTable() {
+  const q = document.getElementById('price-search').value.toLowerCase();
+  const rows = S.unitPrices.filter(p =>
+    !q || p.category.toLowerCase().includes(q) || p.itemName.toLowerCase().includes(q) || p.keywords.toLowerCase().includes(q)
+  );
+  document.getElementById('price-tbody').innerHTML = rows.map(p => `
+    <tr class="${S.selectedPriceId===p.id?'selected':''}" onclick="selectPrice(${p.id})">
+      <td>${p.id}</td><td>${p.category}</td><td>${p.itemName}</td>
+      <td>${p.spec}</td><td>${p.unit}</td>
+      <td class="num">${p.unitPrice.toLocaleString()}</td>
+      <td style="color:var(--text2);font-size:11px">${p.keywords}</td>
+    </tr>`).join('');
+}
+
+function selectPrice(id) { S.selectedPriceId = id; renderPriceTable(); }
+
+function showPriceDialog(id=null) {
+  const p = id ? S.unitPrices.find(x=>x.id===id) : {};
+  const cats = ['照明器具','コンセント','スイッチ','分電盤','配線','空調','その他'];
+  document.getElementById('modal-title').textContent = id ? '単価編集' : '単価追加';
+  document.getElementById('modal-body').innerHTML = `
+    <div class="field"><label>カテゴリ</label><select id="m-cat">${cats.map(c=>`<option${(p.category===c)?' selected':''}>${c}</option>`).join('')}</select></div>
+    <div class="field"><label>品名</label><input type="text" id="m-name" value="${p.itemName||''}"></div>
+    <div class="field"><label>仕様</label><input type="text" id="m-spec" value="${p.spec||''}"></div>
+    <div class="field-row">
+      <div class="field"><label>単位</label><input type="text" id="m-unit" value="${p.unit||'台'}"></div>
+      <div class="field"><label>単価(円)</label><input type="number" id="m-price" value="${p.unitPrice||0}"></div>
+    </div>
+    <div class="field"><label>キーワード(カンマ区切り)</label><input type="text" id="m-kw" value="${p.keywords||''}"></div>
+  `;
+  openModal(async () => {
+    const obj = {
+      id: id||undefined,
+      category: v('m-cat'), itemName: v('m-name'), spec: v('m-spec'),
+      unit: v('m-unit'), unitPrice: parseFloat(v('m-price'))||0, keywords: v('m-kw')
+    };
+    const newId = await dbPut('unit_prices', obj);
+    if (!id) obj.id = newId;
+    S.unitPrices = await dbGet('unit_prices');
+    renderPriceTable();
+    toast('保存しました');
+  });
+}
+
+function editPriceSelected() { if (S.selectedPriceId) showPriceDialog(S.selectedPriceId); }
+async function deletePriceSelected() {
+  if (!S.selectedPriceId) return;
+  if (!confirm('削除しますか？')) return;
+  await dbDelete('unit_prices', S.selectedPriceId);
+  S.unitPrices = await dbGet('unit_prices');
+  S.selectedPriceId = null;
+  renderPriceTable();
+}
+
+function importPriceCSV() {
+  _fileCB = async f => {
+    const text = await readFileAsText(f);
+    const lines = text.split('\n').slice(1);
+    for (const l of lines) {
+      const p = l.split(',');
+      if (p.length < 5) continue;
+      await dbPut('unit_prices', {category:p[0],itemName:p[1],spec:p[2],unit:p[3],unitPrice:parseFloat(p[4])||0,keywords:p[5]||''});
+    }
+    S.unitPrices = await dbGet('unit_prices');
+    renderPriceTable();
+    toast('インポート完了');
+  };
+  pickFile(null, ['csv']);
+}
+
+function exportPriceCSV() {
+  const hdr = 'カテゴリ,品名,仕様,単位,単価(円),キーワード';
+  const rows = S.unitPrices.map(p=>`${p.category},${p.itemName},${p.spec},${p.unit},${p.unitPrice},${p.keywords}`);
+  downloadText([hdr,...rows].join('\n'), 'unit_prices.csv', 'text/csv');
+}
+
+// ════════════════════════════════════════════════════════════
+//  TAB ③  記号パターン
+// ════════════════════════════════════════════════════════════
+function renderSymTable() {
+  document.getElementById('sym-tbody').innerHTML = S.symbolPatterns.map(s => `
+    <tr class="${S.selectedSymId===s.id?'selected':''}" onclick="S.selectedSymId=${s.id};renderSymTable()">
+      <td>${s.id}</td><td>${s.name}</td><td>${s.patternType}</td>
+      <td>${s.description}</td><td>${s.preset?'✓':''}</td>
+    </tr>`).join('');
+}
+
+function showSymDialog(id=null) {
+  const s = id ? S.symbolPatterns.find(x=>x.id===id) : {};
+  const types = ['simple_circle','circle_with_line','rectangle_with_cross','dashed_circle','triangle'];
+  document.getElementById('modal-title').textContent = id ? 'パターン編集' : 'パターン追加';
+  document.getElementById('modal-body').innerHTML = `
+    <div class="field"><label>設備名</label><input type="text" id="m-sname" value="${s.name||''}"></div>
+    <div class="field"><label>パターンタイプ</label><select id="m-stype">${types.map(t=>`<option${s.patternType===t?' selected':''}>${t}</option>`).join('')}</select></div>
+    <div class="field"><label>説明</label><input type="text" id="m-sdesc" value="${s.description||''}"></div>
+    <div class="field-row">
+      <div class="field"><label>最小サイズ px</label><input type="number" id="m-smin" value="40"></div>
+      <div class="field"><label>最大サイズ px</label><input type="number" id="m-smax" value="120"></div>
+    </div>
+  `;
+  openModal(async () => {
+    const obj = {id:id||undefined, name:v('m-sname'), patternType:v('m-stype'), description:v('m-sdesc'), preset:false,
+      patternJSON:JSON.stringify({type:v('m-stype'),radius_min:parseInt(v('m-smin')),radius_max:parseInt(v('m-smax'))})};
+    await dbPut('symbol_patterns', obj);
+    S.symbolPatterns = await dbGet('symbol_patterns');
+    renderSymTable(); toast('保存しました');
+  });
+}
+
+function editSymSelected() { if (S.selectedSymId) showSymDialog(S.selectedSymId); }
+async function deleteSymSelected() {
+  if (!S.selectedSymId) return;
+  if (!confirm('削除しますか？')) return;
+  await dbDelete('symbol_patterns', S.selectedSymId);
+  S.symbolPatterns = await dbGet('symbol_patterns');
+  S.selectedSymId = null; renderSymTable();
+}
+
+// ════════════════════════════════════════════════════════════
+//  TAB ④  CADライブラリ
+// ════════════════════════════════════════════════════════════
+function renderCADTable() {
+  document.getElementById('cad-tbody').innerHTML = S.cadLibrary.map(c => `
+    <tr class="${S.selectedCADId===c.id?'selected':''}" onclick="S.selectedCADId=${c.id};renderCADTable()">
+      <td>${c.id}</td><td>${c.manufacturer||''}</td><td>${c.modelNumber||''}</td>
+      <td>${c.category||''}</td><td>${c.itemName||''}</td>
+      <td style="font-family:var(--mono);font-size:11px">${c.fileName||''}</td>
+    </tr>`).join('');
+}
+
+function cadDownloadURL() {
+  const url = document.getElementById('cad-url').value;
+  if (!url || url==='https://') { toast('URLを入力してください'); return; }
+  toast('ダウンロード: ブラウザのCORS制限のため、直接ダウンロードは制限されます');
+}
+
+function cadImportLocal() {
+  _fileCB = async f => {
+    const item = {manufacturer:'',modelNumber:'',category:'その他',itemName:f.name.replace(/\.[^.]+$/,''),fileName:f.name,url:''};
+    await dbPut('cad_library', item);
+    S.cadLibrary = await dbGet('cad_library');
+    renderCADTable(); toast('登録しました: ' + f.name);
+  };
+  pickFile(null, ['dxf','jww','svg']);
+}
+
+async function cadDeleteSelected() {
+  if (!S.selectedCADId) return;
+  await dbDelete('cad_library', S.selectedCADId);
+  S.cadLibrary = await dbGet('cad_library');
+  S.selectedCADId = null; renderCADTable();
+}
+
+// ════════════════════════════════════════════════════════════
+//  TAB ⑤  画像PDF解析・アノテーション
+// ════════════════════════════════════════════════════════════
+const IMG_LOG = () => document.getElementById('img-log');
+function log_img(msg) { const el=IMG_LOG(); el.textContent+=msg+'\n'; el.scrollTop=el.scrollHeight; }
+
+function pickImageFile() { document.getElementById('img-file-input').click(); }
+
+async function handleImageFile(inp) {
+  const f = inp.files[0]; if(!f) return;
+  S.imageFilePath = f.name;
+  S.imagePages = []; S.imageDetections = []; S.currentPage = 1;
+  document.getElementById('img-empty').style.display='none';
+  log_img('ファイル読込: ' + f.name);
+
+  const ext = f.name.split('.').pop().toLowerCase();
+  if (ext === 'pdf') {
+    await loadPDF(f);
+  } else if (['png','jpg','jpeg','gif','bmp','tiff'].includes(ext)) {
+    const url = URL.createObjectURL(f);
+    S.imagePages = [url];
+    renderImagePage();
+    log_img('画像読込完了');
+  } else {
+    log_img('DXFはテキスト解析モードで処理します');
+    const text = await readFileAsText(f);
+    S.estimateRows.push(...matchTextToPrices(text));
+    renderEstTable();
+    toast('DXFテキスト解析完了');
+  }
+  updatePageInfo();
+}
+
+async function loadPDF(file) {
+  log_img('PDF読込中...');
+  try {
+    // PDF.js CDN経由で読み込み
+    if (!window.pdfjsLib) {
+      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+    const ab = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({data: ab}).promise;
+    log_img(`PDF読込完了: ${pdf.numPages}ページ`);
+    S.imagePages = [];
+    const scale = parseFloat(document.getElementById('s-pdf').value) || 1.25;
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const vp = page.getViewport({scale});
+      const canvas = document.createElement('canvas');
+      canvas.width = vp.width; canvas.height = vp.height;
+      await page.render({canvasContext: canvas.getContext('2d'), viewport: vp}).promise;
+      S.imagePages.push(canvas.toDataURL('image/png'));
+      log_img(`P${i} レンダリング完了`);
+    }
+    renderImagePage();
+  } catch(e) { log_img('PDFエラー: ' + e.message); }
+}
+
+function renderImagePage() {
+  const canvas = document.getElementById('draw-canvas');
+  const page = S.imagePages[S.currentPage - 1];
+  if (!page) return;
+  const img = new Image();
+  img.onload = () => {
+    canvas.width = img.width;
+    canvas.height = img.height;
+    canvas.getContext('2d').drawImage(img, 0, 0);
+    renderDetOverlay();
+  };
+  img.src = page;
+  updatePageInfo();
+}
+
+function renderDetOverlay() {
+  const overlay = document.getElementById('det-overlay');
+  const dets = S.imageDetections.filter(d => d.page === S.currentPage && d.enabled);
+  overlay.innerHTML = dets.map(d => {
+    const col = COLOR_MAP[d.colorName] || '#e67e22';
+    const sel = d.id === S.selectedDetId;
+    return `<div class="det-box" style="left:${d.x1}px;top:${d.y1}px;width:${d.x2-d.x1}px;height:${d.y2-d.y1}px;border-color:${sel?'#f1c40f':col}" onclick="selectDet(${d.id})">
+      <div class="det-label" style="background:${col};color:#fff">${d.label||d.equipment}</div>
+    </div>`;
+  }).join('');
+}
+
+function selectDet(id) {
+  S.selectedDetId = id;
+  renderDetOverlay();
+  renderDetList();
+}
+
+function updatePageInfo() {
+  document.getElementById('img-page-info').textContent = `ページ: ${S.currentPage} / ${S.imagePages.length||'-'}`;
+  document.getElementById('img-empty').style.display = S.imagePages.length ? 'none' : '';
+}
+
+function changePage(delta) {
+  const next = S.currentPage + delta;
+  if (next < 1 || next > S.imagePages.length) return;
+  S.currentPage = next;
+  renderImagePage();
+}
+
+async function startImageAnalysis() {
+  if (!S.imagePages.length) { toast('先にファイルを選択してください'); return; }
+  log_img('解析開始...');
+  S.imageDetections = [];
+  for (let i = 0; i < S.imagePages.length; i++) {
+    const dets = await analyzePageColors(S.imagePages[i], i+1);
+    S.imageDetections.push(...dets);
+    log_img(`P${i+1}: ${dets.count||dets.length}件検出`);
+  }
+  renderDetOverlay();
+  renderDetList();
+  rebuildImageEstimate();
+  document.getElementById('det-count').textContent = S.imageDetections.length;
+  log_img('解析完了: ' + S.imageDetections.length + '件');
+  setStatus('解析完了 ' + S.imageDetections.length + '件');
+}
+
+function analyzePageColors(pageDataURL, pageNo) {
+  return new Promise(res => {
+    const img = new Image();
+    img.onload = () => {
+      const W = img.width, H = img.height;
+      const c = document.createElement('canvas');
+      c.width = W; c.height = H;
+      const ctx = c.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+
+      const step = parseInt(document.getElementById('s-scan').value)||4;
+      const minW = parseInt(document.getElementById('s-minw').value)||4;
+      const minH = parseInt(document.getElementById('s-minh').value)||4;
+      const maxW = parseInt(document.getElementById('s-maxw').value)*3||165;
+      const maxH = parseInt(document.getElementById('s-maxh').value)*3||165;
+      const maxDets = parseInt(document.getElementById('s-md').value)||140;
+      const exclRight = document.getElementById('s-excl').checked ? parseFloat(document.getElementById('s-lr').value)/100 : 0;
+      const exclBottom = document.getElementById('s-excl').checked ? parseFloat(document.getElementById('s-br').value)/100 : 0;
+      const maxX = Math.floor(W*(1-exclRight));
+      const maxY = Math.floor(H*(1-exclBottom));
+      const clusterDist = parseInt(document.getElementById('s-cd').value)||6;
+      const minPts = parseInt(document.getElementById('s-cp').value)||3;
+
+      const data = ctx.getImageData(0, 0, W, H).data;
+      const points = {}; // colorName -> [{x,y}]
+
+      for (let y = 0; y < maxY; y += step) {
+        for (let x = 0; x < maxX; x += step) {
+          const i = (y*W+x)*4;
+          const r=data[i], g=data[i+1], b=data[i+2];
+          for (const rule of S.colorRules) {
+            if (!rule.enabled) continue;
+            if (r>=rule.rMin&&r<=rule.rMax&&g>=rule.gMin&&g<=rule.gMax&&b>=rule.bMin&&b<=rule.bMax) {
+              if (!points[rule.colorName]) points[rule.colorName]=[];
+              points[rule.colorName].push({x,y});
+              break;
+            }
+          }
+        }
+      }
+
+      let dets = [], detId = (S.imageDetections.length ? Math.max(...S.imageDetections.map(d=>d.id))+1 : 1);
+      for (const [colorName, pts] of Object.entries(points)) {
+        const clusters = clusterPoints(pts, clusterDist*step);
+        for (const cluster of clusters) {
+          if (cluster.length < minPts) continue;
+          const xs=cluster.map(p=>p.x), ys=cluster.map(p=>p.y);
+          const x1=Math.min(...xs),y1=Math.min(...ys),x2=Math.max(...xs),y2=Math.max(...ys);
+          const w=x2-x1, h=y2-y1;
+          if (w<minW||h<minH||w>maxW||h>maxH) continue;
+          if (dets.length>=maxDets) break;
+          const equipment = S.colorRules.find(r=>r.colorName===colorName)?.equipment || colorName;
+          dets.push({id:detId++,page:pageNo,x1,y1,x2,y2,colorName,equipment,enabled:true,llmAnswer:'',finalAnswer:'',label:equipment});
+        }
+      }
+      res(dets);
+    };
+    img.src = pageDataURL;
+  });
+}
+
+function clusterPoints(pts, dist) {
+  const labels = new Array(pts.length).fill(-1);
+  let ci = 0;
+  for (let i = 0; i < pts.length; i++) {
+    if (labels[i] !== -1) continue;
+    labels[i] = ci;
+    const q = [i];
+    while (q.length) {
+      const cur = q.shift();
+      for (let j = 0; j < pts.length; j++) {
+        if (labels[j]!==-1) continue;
+        if (Math.abs(pts[cur].x-pts[j].x)<=dist && Math.abs(pts[cur].y-pts[j].y)<=dist) {
+          labels[j]=ci; q.push(j);
+        }
+      }
+    }
+    ci++;
+  }
+  const clusters = {};
+  labels.forEach((l,i) => { if(!clusters[l]) clusters[l]=[]; clusters[l].push(pts[i]); });
+  return Object.values(clusters);
+}
+
+function renderDetList() {
+  const dets = S.imageDetections.filter(d=>d.page===S.currentPage);
+  document.getElementById('det-list').innerHTML = dets.map(d => `
+    <div style="padding:5px 8px;border-bottom:1px solid var(--border);cursor:pointer;background:${d.id===S.selectedDetId?'rgba(240,165,0,0.1)':'transparent'};display:flex;align-items:center;gap:6px" onclick="selectDet(${d.id})">
+      <span class="color-dot" style="background:${COLOR_MAP[d.colorName]||'#888'}"></span>
+      <span style="flex:1;font-size:11px">${d.label||d.equipment}</span>
+      ${d.finalAnswer?'<span class="badge badge-ok" style="font-size:9px">✓</span>':''}
+      <span style="font-size:10px;color:var(--text2)">(${d.x1},${d.y1})</span>
+    </div>`).join('');
+  document.getElementById('det-count').textContent = dets.length;
+}
+
+function rebuildImageEstimate() {
+  const counts = {};
+  for (const d of S.imageDetections) {
+    if (!d.enabled) continue;
+    const label = d.finalAnswer || d.equipment;
+    for (const p of S.unitPrices) {
+      const kws = p.keywords.split(',').map(k=>k.trim());
+      if (kws.some(k=>k && (label.includes(k)||k.includes(label)))) {
+        if (!counts[p.id]) counts[p.id]={price:p,qty:0};
+        counts[p.id].qty++;
+        break;
+      }
+    }
+  }
+  const rows = Object.values(counts).map(({price:p,qty})=>({
+    category:p.category,itemName:p.itemName,spec:p.spec,unit:p.unit,
+    quantity:qty,unitPrice:p.unitPrice,totalPrice:qty*p.unitPrice
+  }));
+  const total = rows.reduce((s,r)=>s+r.totalPrice,0);
+  document.getElementById('img-est-list').innerHTML = rows.map(r=>
+    `<div style="padding:4px 8px;border-bottom:1px solid rgba(42,63,88,0.4);display:flex;justify-content:space-between;font-size:11px">
+      <span>${r.itemName}</span>
+      <span style="color:var(--accent);font-family:var(--mono)">×${r.quantity} ¥${r.totalPrice.toLocaleString()}</span>
+    </div>`).join('');
+  document.getElementById('img-est-total').textContent = '¥' + total.toLocaleString();
+}
+
+async function aiAnnotateSelected() {
+  if (!S.selectedDetId) { toast('検出を選択してください'); return; }
+  const det = S.imageDetections.find(d=>d.id===S.selectedDetId);
+  if (!det) return;
+  log_img('AI解析中...');
+  try {
+    const prompt = `電気設備図面の記号です。色=${det.colorName}, 推定設備=${det.equipment}, 位置=(${det.x1},${det.y1})-(${det.x2},${det.y2})。\nこの記号が表す電気設備の名称を日本語で1〜3語で答えてください。`;
+    const ans = await aiGenerate(prompt);
+    const trimmed = ans.trim().split('\n')[0].substring(0, 30);
+    if (confirm(`AI答え: "${trimmed}"\n\nOKとして登録しますか？`)) {
+      det.finalAnswer = trimmed; det.label = trimmed;
+      saveAnnotation(det, ans, trimmed, true);
+    } else {
+      const cor = prompt('正しい設備名を入力:', trimmed);
+      if (cor) { det.finalAnswer=cor; det.label=cor; saveAnnotation(det, ans, cor, false); }
+    }
+    renderDetOverlay(); renderDetList(); rebuildImageEstimate();
+    log_img('AI注釈: ' + det.label);
+  } catch(e) { log_img('AI注釈エラー: ' + e.message); }
+}
+
+async function saveAnnotation(det, llmAnswer, finalAnswer, isCorrect) {
+  await dbPut('annotation_samples', {
+    createdAt: new Date().toISOString(),
+    sourceFile: S.imageFilePath, page: det.page,
+    x1:det.x1,y1:det.y1,x2:det.x2,y2:det.y2,
+    colorName:det.colorName, llmAnswer, finalAnswer,
+    isCorrect: isCorrect ? 1 : 0, memo:''
+  });
+  S.annotationSamples = await dbGet('annotation_samples');
+}
+
+function addManualDet() {
+  const det = {id: Date.now(), page: S.currentPage, x1:50,y1:50,x2:100,y2:100, colorName:'orange', equipment:'手動追加', enabled:true, llmAnswer:'', finalAnswer:'', label:'手動追加'};
+  S.imageDetections.push(det);
+  S.selectedDetId = det.id;
+  renderDetOverlay(); renderDetList(); rebuildImageEstimate();
+}
+
+function editDetSelected() {
+  const det = S.imageDetections.find(d=>d.id===S.selectedDetId);
+  if (!det) return;
+  document.getElementById('modal-title').textContent = '検出編集';
+  document.getElementById('modal-body').innerHTML = `
+    <div class="field"><label>設備名</label><input type="text" id="m-det-eq" value="${det.equipment}"></div>
+    <div class="field"><label>確定答え</label><input type="text" id="m-det-ans" value="${det.finalAnswer}"></div>
+    <div class="field-row">
+      <div class="field"><label>X1</label><input type="number" id="m-x1" value="${det.x1}"></div>
+      <div class="field"><label>Y1</label><input type="number" id="m-y1" value="${det.y1}"></div>
+      <div class="field"><label>X2</label><input type="number" id="m-x2" value="${det.x2}"></div>
+      <div class="field"><label>Y2</label><input type="number" id="m-y2" value="${det.y2}"></div>
+    </div>
+    <div class="field"><label><input type="checkbox" id="m-det-en" ${det.enabled?'checked':''}> 有効</label></div>
+  `;
+  openModal(() => {
+    det.equipment = v('m-det-eq'); det.finalAnswer = v('m-det-ans');
+    det.label = det.finalAnswer || det.equipment;
+    det.x1=parseInt(v('m-x1')); det.y1=parseInt(v('m-y1'));
+    det.x2=parseInt(v('m-x2')); det.y2=parseInt(v('m-y2'));
+    det.enabled = document.getElementById('m-det-en').checked;
+    renderDetOverlay(); renderDetList(); rebuildImageEstimate();
+  });
+}
+
+function deleteDetSelected() {
+  if (!S.selectedDetId) return;
+  S.imageDetections = S.imageDetections.filter(d=>d.id!==S.selectedDetId);
+  S.selectedDetId = null;
+  renderDetOverlay(); renderDetList(); rebuildImageEstimate();
+}
+
+async function applyLearning() {
+  let applied = 0;
+  for (const d of S.imageDetections) {
+    const match = S.annotationSamples.find(s => s.colorName===d.colorName && s.isCorrect && s.finalAnswer);
+    if (match && !d.finalAnswer) { d.finalAnswer=match.finalAnswer; d.label=match.finalAnswer; applied++; }
+  }
+  renderDetOverlay(); renderDetList(); rebuildImageEstimate();
+  toast(`学習適用: ${applied}件更新`);
+}
+
+function exportDetCSV() {
+  const hdr = 'ページ,設備名,色,有効,X1,Y1,X2,Y2';
+  const rows = S.imageDetections.map(d=>`${d.page},${d.label},${d.colorName},${d.enabled?1:0},${d.x1},${d.y1},${d.x2},${d.y2}`);
+  downloadText([hdr,...rows].join('\n'), 'image_detections.csv', 'text/csv');
+}
+
+// ════════════════════════════════════════════════════════════
+//  TAB ⑥  画像チューニング
+// ════════════════════════════════════════════════════════════
+function renderColorRulesUI() {
+  document.getElementById('color-rules-ui').innerHTML = S.colorRules.map(r => `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:12px">
+      <span class="color-dot" style="background:${COLOR_MAP[r.colorName]||'#888'}"></span>
+      <span style="width:60px">${r.colorName}</span>
+      <span style="flex:1;color:var(--text2)">${r.equipment}</span>
+      <input type="checkbox" ${r.enabled?'checked':''} onchange="toggleColorRule(${r.id},this.checked)">
+      <button class="btn btn-secondary" style="padding:2px 8px;font-size:11px" onclick="editColorRule(${r.id})">編集</button>
+    </div>`).join('');
+}
+
+async function toggleColorRule(id, enabled) {
+  const r = S.colorRules.find(x=>x.id===id);
+  if(r) { r.enabled=enabled; await dbPut('color_rules',r); }
+}
+
+function editColorRule(id) {
+  const r = S.colorRules.find(x=>x.id===id);
+  if (!r) return;
+  document.getElementById('modal-title').textContent = '色ルール編集: ' + r.colorName;
+  document.getElementById('modal-body').innerHTML = `
+    <div class="field"><label>設備名</label><input type="text" id="m-req" value="${r.equipment}"></div>
+    <div class="field-row"><div class="field"><label>R最小</label><input type="number" id="m-rmin" value="${r.rMin}" min="0" max="255"></div>
+    <div class="field"><label>R最大</label><input type="number" id="m-rmax" value="${r.rMax}" min="0" max="255"></div></div>
+    <div class="field-row"><div class="field"><label>G最小</label><input type="number" id="m-gmin" value="${r.gMin}" min="0" max="255"></div>
+    <div class="field"><label>G最大</label><input type="number" id="m-gmax" value="${r.gMax}" min="0" max="255"></div></div>
+    <div class="field-row"><div class="field"><label>B最小</label><input type="number" id="m-bmin" value="${r.bMin}" min="0" max="255"></div>
+    <div class="field"><label>B最大</label><input type="number" id="m-bmax" value="${r.bMax}" min="0" max="255"></div></div>
+  `;
+  openModal(async () => {
+    r.equipment=v('m-req'); r.rMin=parseInt(v('m-rmin')); r.rMax=parseInt(v('m-rmax'));
+    r.gMin=parseInt(v('m-gmin')); r.gMax=parseInt(v('m-gmax'));
+    r.bMin=parseInt(v('m-bmin')); r.bMax=parseInt(v('m-bmax'));
+    await dbPut('color_rules',r); S.colorRules=await dbGet('color_rules');
+    renderColorRulesUI(); toast('色ルール保存');
+  });
+}
+
+function saveTuningSettings() {
+  setSetting('scan_step', document.getElementById('s-scan').value);
+  setSetting('pdf_scale', document.getElementById('s-pdf').value);
+  setSetting('cluster_dist', document.getElementById('s-cd').value);
+  toast('設定を保存しました');
+}
+
+// ════════════════════════════════════════════════════════════
+//  TAB ⑦  Ollama解析 / AI設定
+// ════════════════════════════════════════════════════════════
+function saveAISettings() {
+  setSetting('ai_provider', document.getElementById('ai-provider').value);
+  setSetting('ollama_url', document.getElementById('ai-ollama-url').value);
+  setSetting('ollama_model', document.getElementById('ai-ollama-model').value);
+  setSetting('openai_key', document.getElementById('ai-openai-key').value);
+  setSetting('openai_model', document.getElementById('ai-openai-model').value);
+  setSetting('anthropic_key', document.getElementById('ai-anthropic-key').value);
+  toast('AI設定を保存しました');
+}
+
+async function testAI() {
+  setStatus('AI接続テスト中...');
+  try {
+    const ans = await aiGenerate('こんにちは。電気設備積算AIとして一言自己紹介してください。');
+    document.getElementById('ai-result-box').textContent = '✅ 接続成功\n\n' + ans;
+    setStatus('AI接続テスト成功');
+  } catch(e) {
+    document.getElementById('ai-result-box').textContent = '❌ 接続失敗: ' + e.message;
+    setStatus('AI接続テスト失敗');
+  }
+}
+
+async function refreshOllamaModels() {
+  try {
+    const url = document.getElementById('ai-ollama-url').value;
+    const res = await fetch(url + '/api/tags');
+    const d = await res.json();
+    const models = (d.models||[]).map(m=>m.name);
+    const inp = document.getElementById('ai-ollama-model');
+    if (models.length) { inp.value = models[0]; toast('モデル一覧取得: ' + models.length + '件'); }
+  } catch(e) { toast('Ollama接続失敗: ' + e.message); }
+}
+
+async function refreshOpenAIModels() {
+  const key = document.getElementById('ai-openai-key').value;
+  if (!key) { toast('APIキーを入力してください'); return; }
+  try {
+    const res = await fetch('https://api.openai.com/v1/models', {headers:{Authorization:'Bearer '+key}});
+    const d = await res.json();
+    const models = (d.data||[]).filter(m=>m.id.includes('gpt')).map(m=>m.id).sort();
+    if (models.length) { document.getElementById('ai-openai-model').value = models[0]; toast('モデル: ' + models.length + '件'); }
+  } catch(e) { toast('OpenAI接続失敗: ' + e.message); }
+}
+
+async function generateSymbolAI() {
+  const name=v('gen-name'),cat=v('gen-cat'),kind=v('gen-kind');
+  const el=document.getElementById('gen-result'); el.textContent='生成中...';
+  try {
+    const ans = await aiGenerate(`電気設備図面用の${kind}を生成してください。\n設備名: ${name}\nカテゴリ: ${cat}\nSVGまたはDXF形式で出力してください。`);
+    el.textContent = ans;
+  } catch(e) { el.textContent='エラー: '+e.message; }
+}
+
+async function generateFamilyAI() {
+  const name=v('gen-name'),cat=v('gen-cat');
+  const el=document.getElementById('gen-result'); el.textContent='生成中...';
+  try {
+    const ans = await aiGenerate(`${cat}の${name}の2Dファミリ仕様書（寸法・仕様・CADブロック定義）をテキストで生成してください。`);
+    el.textContent = ans;
+  } catch(e) { el.textContent='エラー: '+e.message; }
+}
+
+function appendSummaryToPrompt() {
+  const rows = S.estimateRows.map(r=>`${r.itemName} ${r.quantity}${r.unit} ¥${r.totalPrice.toLocaleString()}`);
+  const txt = '\n\n--- 現在の積算結果 ---\n' + rows.join('\n');
+  document.getElementById('ai-prompt').value += txt;
+}
+
+async function runAIPrompt() {
+  const prompt = document.getElementById('ai-prompt').value;
+  const el = document.getElementById('ai-result-box');
+  const ind = document.getElementById('ai-running-ind');
+  ind.style.display=''; el.textContent='解析中...';
+  try {
+    const ans = await aiGenerate(prompt);
+    el.textContent = ans;
+  } catch(e) { el.textContent='エラー: '+e.message; }
+  ind.style.display='none';
+}
+
+// ════════════════════════════════════════════════════════════
+//  TAB ⑧  AIチャット
+// ════════════════════════════════════════════════════════════
+function appendEstimateToChat() {
+  const rows = S.estimateRows.map(r=>`${r.itemName} ${r.quantity}${r.unit}`).join(', ');
+  document.getElementById('chat-input').value += '\n--- 積算結果 ---\n' + rows;
+}
+
+function clearChat() { S.chatHistory=[]; document.getElementById('chat-messages').innerHTML=''; }
+
+function appendChatMsg(role, content) {
+  const wrap = document.createElement('div');
+  wrap.style.display='flex';
+  wrap.style.flexDirection='column';
+  wrap.style.alignItems = role==='user' ? 'flex-end' : 'flex-start';
+  wrap.innerHTML = `<div class="chat-role">${role==='user'?'あなた':'AI'}</div><div class="chat-bubble ${role}">${escapeHTML(content)}</div>`;
+  document.getElementById('chat-messages').appendChild(wrap);
+  wrap.scrollIntoView({block:'end'});
+}
+
+async function sendChat() {
+  const inp = document.getElementById('chat-input');
+  const text = inp.value.trim();
+  if (!text) return;
+  inp.value=''; inp.disabled=true;
+  document.getElementById('btn-chat-send').disabled=true;
+  appendChatMsg('user', text);
+  S.chatHistory.push({role:'user',content:text});
+  try {
+    const sys = document.getElementById('chat-system').value;
+    const ans = await aiGenerate(text, sys, S.chatHistory.slice(-10));
+    appendChatMsg('assistant', ans);
+    S.chatHistory.push({role:'assistant',content:ans});
+  } catch(e) { appendChatMsg('assistant', 'エラー: ' + e.message); }
+  inp.disabled=false;
+  document.getElementById('btn-chat-send').disabled=false;
+  inp.focus();
+}
+
+// ════════════════════════════════════════════════════════════
+//  TAB ⑨  マインドマップ
+// ════════════════════════════════════════════════════════════
+async function generateMindmap() {
+  const task=v('mind-task'), qty=parseInt(v('mind-qty'))||1;
+  const sp=document.getElementById('mind-spinner'); sp.style.display='';
+  const prompt=`電気設備工事の積算マインドマップをJSONで生成してください。
+タスク名: ${task}, 数量: ${qty}
+フォーマット: {"task":"名前","qty":数量,"unit":"単位","unitPrice":単価,"children":[...]}
+設計・材料手配・施工・検査の工程を子ノードに含めてください。JSONのみ出力。`;
+  try {
+    const ans = await aiGenerate(prompt);
+    const cleaned = ans.replace(/```json|```/g,'').trim();
+    S.mindmapData = JSON.parse(cleaned);
+    renderMindmap(S.mindmapData);
+  } catch(e) {
+    S.mindmapData = {task,qty,unit:'式',unitPrice:0,children:[
+      {task:'設計',qty:1,unit:'式',unitPrice:0,children:[]},
+      {task:'材料手配',qty:qty,unit:'式',unitPrice:0,children:[]},
+      {task:'施工',qty:qty,unit:'式',unitPrice:0,children:[]},
+      {task:'検査',qty:1,unit:'式',unitPrice:0,children:[]},
+    ]};
+    renderMindmap(S.mindmapData);
+  }
+  sp.style.display='none';
+}
+
+function renderMindmap(node, depth=0, container=null) {
+  if (!container) {
+    const c = document.getElementById('mindmap-container');
+    c.innerHTML='';
+    container=c;
+  }
+  const el = document.createElement('div');
+  el.style.cssText=`display:flex;align-items:flex-start;margin:4px 0;padding-left:${depth*20}px`;
+  const colors=['var(--accent)','var(--ok)','var(--accent2)','#7b4cdb','#4a8fc0'];
+  const color = colors[depth%colors.length];
+  el.innerHTML=`<div style="width:3px;background:${color};border-radius:2px;align-self:stretch;margin-right:8px;flex-shrink:0"></div>
+    <div style="padding:3px 0">
+      <div style="font-weight:${depth===0?700:500};font-size:${13-depth}px;color:${depth===0?'var(--accent)':''}">${node.task}</div>
+      ${node.unitPrice?`<div style="font-size:11px;color:var(--text2)">${node.qty}${node.unit||''} × ¥${(node.unitPrice||0).toLocaleString()} = ¥${((node.qty||1)*(node.unitPrice||0)).toLocaleString()}</div>`:''}
+    </div>`;
+  container.appendChild(el);
+  if (node.children) for (const child of node.children) renderMindmap(child, depth+1, container);
+}
+
+function mindmapToEstimate() {
+  if (!S.mindmapData) { toast('先にマインドマップを生成してください'); return; }
+  const rows=[];
+  function traverse(n) {
+    if (n.unitPrice>0) rows.push({category:'マインドマップ',itemName:n.task,spec:'',unit:n.unit||'式',quantity:n.qty||1,unitPrice:n.unitPrice,totalPrice:(n.qty||1)*n.unitPrice});
+    (n.children||[]).forEach(traverse);
+  }
+  traverse(S.mindmapData);
+  S.estimateRows.push(...rows);
+  renderEstTable();
+  toast(`${rows.length}件を積算に追加`);
+}
+
+// ════════════════════════════════════════════════════════════
+//  TAB ⑩  ノードCAD
+// ════════════════════════════════════════════════════════════
+let _nodeDrag = null;
+const NODE_COLORS = {symbol:'#3498db',cable:'#e67e22',panel:'#2ecc71',other:'#9b59b6'};
+
+function renderNodeGraph() {
+  const svg = document.getElementById('node-svg');
+  const W=svg.clientWidth||800, H=svg.clientHeight||500;
+  document.getElementById('node-empty').style.display = S.vnodes.length?'none':'';
+  let edgesHTML='', nodesHTML='';
+  for (const e of S.vedges) {
+    const f=S.vnodes.find(n=>n.id===e.fromId), t=S.vnodes.find(n=>n.id===e.toId);
+    if (f&&t) edgesHTML+=`<line x1="${f.x}" y1="${f.y}" x2="${t.x}" y2="${t.y}" stroke="var(--border)" stroke-width="2"/>`;
+  }
+  for (const n of S.vnodes) {
+    const col = NODE_COLORS[n.type]||'#888';
+    const sel = n.id===S.selectedVNodeId;
+    nodesHTML+=`<g transform="translate(${n.x},${n.y})" style="cursor:move" data-nid="${n.id}">
+      <circle r="28" fill="${col}" fill-opacity="0.85" stroke="${sel?'#f1c40f':'transparent'}" stroke-width="3"/>
+      <text text-anchor="middle" dominant-baseline="middle" fill="#fff" font-size="11" font-family="var(--ui)">${n.label.substring(0,6)}</text>
+    </g>`;
+  }
+  svg.innerHTML = edgesHTML + nodesHTML;
+  // Drag
+  svg.querySelectorAll('g[data-nid]').forEach(el => {
+    el.addEventListener('mousedown', e => {
+      const nid = el.getAttribute('data-nid');
+      S.selectedVNodeId = nid;
+      _nodeDrag = {nid, startX:e.clientX, startY:e.clientY};
+      renderNodeGraph();
+      e.preventDefault();
+    });
+    el.addEventListener('click', e => { S.selectedVNodeId=el.getAttribute('data-nid'); renderNodeGraph(); });
+  });
+}
+
+document.addEventListener('mousemove', e => {
+  if (!_nodeDrag) return;
+  const n = S.vnodes.find(x=>x.id===_nodeDrag.nid);
+  if (!n) return;
+  const svg = document.getElementById('node-svg');
+  const rect = svg.getBoundingClientRect();
+  n.x = e.clientX - rect.left;
+  n.y = e.clientY - rect.top;
+  renderNodeGraph();
+});
+document.addEventListener('mouseup', () => { _nodeDrag=null; });
+
+function addVNode(type) {
+  const id = 'n' + Date.now();
+  const labels={symbol:'記号',cable:'ｹｰﾌﾞﾙ',panel:'盤',other:'その他'};
+  S.vnodes.push({id, type, label:labels[type]||type, x:80+Math.random()*400, y:80+Math.random()*300, qty:1, unitPrice:0});
+  renderNodeGraph(); document.getElementById('node-empty').style.display='none';
+}
+
+function editVNodeSelected() {
+  const n = S.vnodes.find(x=>x.id===S.selectedVNodeId);
+  if (!n) { toast('ノードを選択してください'); return; }
+  document.getElementById('modal-title').textContent='ノード編集';
+  document.getElementById('modal-body').innerHTML=`
+    <div class="field"><label>ラベル</label><input type="text" id="m-nl" value="${n.label}"></div>
+    <div class="field-row">
+      <div class="field"><label>数量</label><input type="number" id="m-nq" value="${n.qty}"></div>
+      <div class="field"><label>単価(円)</label><input type="number" id="m-np" value="${n.unitPrice}"></div>
+    </div>
+  `;
+  openModal(()=>{ n.label=v('m-nl'); n.qty=parseFloat(v('m-nq'))||1; n.unitPrice=parseFloat(v('m-np'))||0; renderNodeGraph(); });
+}
+
+function deleteVNodeSelected() {
+  if (!S.selectedVNodeId) return;
+  S.vnodes=S.vnodes.filter(n=>n.id!==S.selectedVNodeId);
+  S.vedges=S.vedges.filter(e=>e.fromId!==S.selectedVNodeId&&e.toId!==S.selectedVNodeId);
+  S.selectedVNodeId=null; renderNodeGraph();
+}
+
+function connectNodes() {
+  if (!S.selectedVNodeId) { toast('接続元ノードを選択してください'); return; }
+  const nids = S.vnodes.filter(n=>n.id!==S.selectedVNodeId).map(n=>n.id);
+  if (!nids.length) { toast('接続先ノードがありません'); return; }
+  document.getElementById('modal-title').textContent='接続先を選択';
+  document.getElementById('modal-body').innerHTML=`
+    <div class="field"><label>接続先ノード</label>
+    <select id="m-connect-to">${S.vnodes.filter(n=>n.id!==S.selectedVNodeId).map(n=>`<option value="${n.id}">${n.label}</option>`).join('')}</select></div>
+  `;
+  openModal(()=>{
+    const toId=document.getElementById('m-connect-to').value;
+    S.vedges.push({id:'e'+Date.now(),fromId:S.selectedVNodeId,toId});
+    renderNodeGraph();
+  });
+}
+
+function clearNodeCanvas() { S.vnodes=[]; S.vedges=[]; S.selectedVNodeId=null; renderNodeGraph(); }
+
+function exportNodeSVG() {
+  const svg = document.getElementById('node-svg');
+  downloadText('<?xml version="1.0"?>\n'+svg.outerHTML, 'node_diagram.svg', 'image/svg+xml');
+}
+
+window.addEventListener('resize', ()=>{ if(document.getElementById('tab-node').classList.contains('active')) renderNodeGraph(); });
+
+// ════════════════════════════════════════════════════════════
+//  TAB ⑪  DQN
+// ════════════════════════════════════════════════════════════
+function renderDQNSummary() {
+  document.getElementById('dqn-tbody').innerHTML = S.dqnSummary.map(s=>`
+    <tr><td>${s.action}</td><td class="num">${s.trials}</td>
+    <td class="num">${(s.rewardAvg||0).toFixed(2)}</td>
+    <td style="font-size:11px;color:var(--text2)">${s.lastUsed||'-'}</td></tr>`).join('');
+}
+
+function saveDQNSettings() {
+  setSetting('dqn_epsilon', document.getElementById('dqn-eps').value);
+  setSetting('dqn_lr', document.getElementById('dqn-lr').value);
+  setSetting('dqn_gamma', document.getElementById('dqn-gamma').value);
+  toast('DQN設定保存');
+}
+
+async function recordReward(reward) {
+  const action = getSetting('dqn_last_action','color_analysis');
+  document.getElementById('dqn-last-action').textContent = action + ' (報酬' + (reward>0?'+':'') + reward + ')';
+  const existing = S.dqnSummary.find(s=>s.action===action);
+  if (existing) {
+    existing.trials++; existing.rewardSum=(existing.rewardSum||0)+reward;
+    existing.rewardAvg=existing.rewardSum/existing.trials;
+    existing.lastUsed=new Date().toISOString();
+    await dbPut('dqn_summary',existing);
+  } else {
+    await dbPut('dqn_summary',{action,trials:1,rewardSum:reward,rewardAvg:reward,lastUsed:new Date().toISOString()});
+  }
+  S.dqnSummary=await dbGet('dqn_summary');
+  renderDQNSummary();
+  toast('報酬記録: ' + (reward>0?'+':'') + reward);
+}
+
+// ════════════════════════════════════════════════════════════
+//  TAB ⑫  学習データ
+// ════════════════════════════════════════════════════════════
+function renderLearnTable() {
+  const total = S.annotationSamples.length;
+  const correct = S.annotationSamples.filter(s=>s.isCorrect).length;
+  document.getElementById('learn-stats').innerHTML=`
+    <span>総件数: <b>${total}</b></span>
+    <span>正解: <b style="color:var(--ok)">${correct}</b></span>
+    <span>正解率: <b style="color:var(--accent)">${total?Math.round(correct/total*100):0}%</b></span>
+  `;
+  document.getElementById('learn-tbody').innerHTML = S.annotationSamples.slice().reverse().map(s=>`
+    <tr>
+      <td style="font-size:11px;font-family:var(--mono)">${(s.createdAt||'').substring(0,16)}</td>
+      <td style="font-size:11px">${(s.sourceFile||'').split('/').pop()}</td>
+      <td>${s.finalAnswer||''}</td>
+      <td style="color:var(--text2)">${s.llmAnswer||''}</td>
+      <td>${s.isCorrect?'<span class="badge badge-ok">✓</span>':'<span class="badge badge-ng">✗</span>'}</td>
+      <td style="font-size:11px;color:var(--text2)">${s.memo||''}</td>
+    </tr>`).join('');
+}
+
+function exportLearnCSV() {
+  const hdr='日時,ファイル,最終答え,LLM答え,正解,メモ';
+  const rows=S.annotationSamples.map(s=>`${s.createdAt||''},${s.sourceFile||''},${s.finalAnswer||''},${s.llmAnswer||''},${s.isCorrect?1:0},${s.memo||''}`);
+  downloadText([hdr,...rows].join('\n'),'learning_data.csv','text/csv');
+}
+
+// ════════════════════════════════════════════════════════════
+//  Modal helpers
+// ════════════════════════════════════════════════════════════
+let _modalCB = null;
+function openModal(cb) { _modalCB=cb; document.getElementById('modal-overlay').style.display='flex'; }
+function closeModal() { document.getElementById('modal-overlay').style.display='none'; _modalCB=null; }
+function modalOK() { if(_modalCB) _modalCB(); closeModal(); }
+document.getElementById('modal-overlay').addEventListener('click', e => { if(e.target===e.currentTarget) closeModal(); });
+
+// ════════════════════════════════════════════════════════════
+//  Utilities
+// ════════════════════════════════════════════════════════════
+function v(id) { return document.getElementById(id)?.value||''; }
+function escapeHTML(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function escapeRE(s) { return s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); }
+
+function readFileAsText(file) {
+  return new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onload = e => res(e.target.result);
+    fr.onerror = rej;
+    fr.readAsText(file, 'UTF-8');
+  });
+}
+
+function downloadText(content, filename, type='text/plain') {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content], {type}));
+  a.download = filename;
+  a.click();
+}
+
+function loadScript(src) {
+  return new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src=src; s.onload=res; s.onerror=rej;
+    document.head.appendChild(s);
+  });
+}
+
+// ════════════════════════════════════════════════════════════
+//  Keyboard shortcuts
+// ════════════════════════════════════════════════════════════
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey && e.key==='Enter') {
+    const chatInp=document.getElementById('chat-input');
+    if (document.activeElement===chatInp) sendChat();
+  }
+});
+
+// ════════════════════════════════════════════════════════════
+//  Boot
+// ════════════════════════════════════════════════════════════
+init();
+</script>
+</body>
+</html>

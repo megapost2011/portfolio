@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>パワハラ検知AIレコーダー Web版</title>
+<style>
+:root{
+  --bg:#0d1424;--panel:#151f38;--panel2:#0a1020;--input:#070d1a;
+  --text:#d9e4f5;--sub:#7f8da8;--accent:#3b82f6;--ok:#10b981;
+  --warn:#f59e0b;--bad:#ef4444;--line:#263553;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:Meiryo,"Yu Gothic",sans-serif}
+header{background:var(--panel2);padding:16px 22px;border-bottom:1px solid var(--line)}
+header h1{font-size:20px;margin:0 0 4px}
+header small{color:var(--sub)}
+main{max-width:1180px;margin:auto;padding:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
+.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:10px}
+.col-2{grid-column:span 2}.col-3{grid-column:span 3}.col-4{grid-column:span 4}
+.col-6{grid-column:span 6}.col-8{grid-column:span 8}.col-12{grid-column:span 12}
+label{display:block;color:var(--sub);font-size:12px;margin-bottom:5px}
+input,select,textarea,button{
+  font:inherit;border-radius:7px;border:1px solid var(--line)
+}
+input,select,textarea{width:100%;background:var(--input);color:var(--text);padding:9px}
+textarea{min-height:240px;resize:vertical;line-height:1.6}
+button{background:#1e3a5f;color:#bfdbfe;padding:9px 13px;cursor:pointer}
+button.primary{background:var(--accent);color:#fff;font-weight:bold}
+button.danger{background:#5a1e25;color:#fecaca}
+button:disabled{opacity:.5;cursor:not-allowed}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.tabs{display:flex;gap:5px;margin-bottom:10px;flex-wrap:wrap}
+.tab{background:#162440}
+.tab.active{background:var(--accent);color:white}
+.pane{display:none}.pane.active{display:block}
+.status{position:sticky;bottom:0;background:var(--panel2);border-top:1px solid var(--line);padding:10px 14px;color:var(--sub)}
+.ok{color:var(--ok)}.warn{color:var(--warn)}.bad{color:#fca5a5}
+.note{font-size:12px;color:var(--sub);line-height:1.6}
+.result{background:var(--input);border:1px solid var(--line);border-radius:8px;padding:14px;min-height:240px;white-space:pre-wrap}
+.incident{border-left:4px solid var(--accent);background:#0b1323;padding:10px;margin:10px 0;border-radius:6px}
+.incident.high{border-color:#ef4444}.incident.mid{border-color:#f59e0b}.incident.low{border-color:#60a5fa}
+.badge{display:inline-block;padding:2px 7px;border-radius:999px;background:#233659;margin-right:5px;font-size:12px}
+progress{width:100%;height:16px}
+audio{width:100%;margin-top:8px}
+details{margin-top:8px}
+code{color:#bfdbfe}
+@media(max-width:800px){
+  .col-2,.col-3,.col-4,.col-6,.col-8{grid-column:span 12}
+}
+@media print{
+  header,.no-print,.status{display:none!important}
+  body,.card,.result,.incident{background:white;color:black;border-color:#aaa}
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>🛡️ パワハラ検知AIレコーダー Web版</h1>
+  <small>Python・Spyder・Whisperパッケージ不要。音声認識はブラウザ内AIまたはマイク認識を使用します。</small>
+</header>
+
+<main>
+  <section class="card">
+    <h3>1. AI解析設定</h3>
+    <div class="grid">
+      <div class="col-3">
+        <label>プロバイダ</label>
+        <select id="provider">
+          <option value="ollama">Ollama（ローカル）</option>
+          <option value="lmstudio">LM Studio（ローカル）</option>
+          <option value="gemini">Gemini API</option>
+          <option value="openai">OpenAI API</option>
+          <option value="claude">Claude API</option>
+        </select>
+      </div>
+      <div class="col-4">
+        <label>モデル名</label>
+        <input id="model" value="">
+      </div>
+      <div class="col-3">
+        <label>API URL</label>
+        <input id="apiUrl" value="http://127.0.0.1:11434">
+      </div>
+      <div class="col-2">
+        <label>&nbsp;</label>
+        <div class="row"><button id="testConnection">🔌 接続テスト</button><button id="detectModels">🔄 モデル検出</button></div>
+      </div>
+      <div class="col-8" id="keyArea">
+        <label>APIキー（ローカルLLMでは不要）</label>
+        <input id="apiKey" type="password" autocomplete="off">
+      </div>
+      <div class="col-4">
+        <label>&nbsp;</label>
+        <div class="row">
+          <button id="toggleKey">キー表示</button>
+          <button id="saveSettings">設定保存</button>
+        </div>
+      </div>
+      <div class="col-12">
+        <div id="modelStatus" class="note">Ollamaを起動後、まず「接続テスト」、次に「モデル検出」を押してください。検出できない場合でも、モデル名を手入力して解析できます。</div>
+        <pre id="diag" class="note" style="white-space:pre-wrap;background:#070d1a;padding:9px;border-radius:7px;margin-top:8px">診断ログはここに表示されます。</pre>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h3>2. 音声入力・文字起こし</h3>
+    <div class="tabs no-print">
+      <button class="tab active" data-pane="filePane">📁 音声・動画ファイル</button>
+      <button class="tab" data-pane="micPane">🎙️ マイク</button>
+      <button class="tab" data-pane="samplePane">🧪 サンプル</button>
+    </div>
+
+    <div id="filePane" class="pane active">
+      <div class="grid">
+        <div class="col-8">
+          <label>音声・動画ファイル</label>
+          <input id="mediaFile" type="file" accept="audio/*,video/*">
+          <audio id="audioPlayer" controls></audio>
+        </div>
+        <div class="col-4">
+          <label>ブラウザ内Whisperモデル</label>
+          <select id="whisperModel">
+            <option value="onnx-community/whisper-tiny">tiny（軽量）</option>
+            <option value="onnx-community/whisper-base" selected>base（推奨）</option>
+            <option value="onnx-community/whisper-small">small（高精度・重い）</option>
+          </select>
+          <div style="height:8px"></div>
+          <button id="transcribeFile" class="primary">📝 ファイルを文字起こし</button>
+        </div>
+        <div class="col-12">
+          <progress id="asrProgress" value="0" max="100"></progress>
+          <div id="asrStatus" class="note">
+            初回のみAIモデルをインターネットから取得します。モデルはブラウザのキャッシュに保存されます。
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="micPane" class="pane">
+      <div class="row">
+        <button id="micStart" class="primary">🎙️ マイク認識開始</button>
+        <button id="micStop" class="danger" disabled>停止</button>
+        <span id="micStatus" class="note">ChromeまたはEdge推奨</span>
+      </div>
+      <p class="note">ブラウザのWeb Speech APIでリアルタイム認識します。利用可否はブラウザに依存します。</p>
+    </div>
+
+    <div id="samplePane" class="pane">
+      <div class="grid">
+        <div class="col-4">
+          <label>サンプルシナリオ</label>
+          <select id="sampleSelect"></select>
+        </div>
+        <div class="col-8">
+          <label>&nbsp;</label>
+          <div class="row">
+            <button id="insertSample" class="primary">📄 台本を挿入</button>
+            <button id="speakSample">🔊 サンプルを読み上げ</button>
+            <button id="stopSpeak">停止</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h3>3. 文字起こし</h3>
+    <textarea id="transcript" placeholder="文字起こし結果、または解析したい会話を貼り付けてください。"></textarea>
+    <div class="row no-print" style="margin-top:8px">
+      <button id="analyze" class="primary">🔍 AIで解析</button>
+      <button id="clearTranscript">クリア</button>
+      <button id="saveTranscript">文字起こしTXT保存</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h3>4. 解析結果</h3>
+    <div id="result" class="result">解析結果はここに表示されます。</div>
+    <div class="row no-print" style="margin-top:10px">
+      <button id="saveReport">💾 レポートTXT保存</button>
+      <button id="printReport">🖨️ PDF保存・印刷</button>
+      <button id="copyReport">📋 コピー</button>
+    </div>
+  </section>
+
+  <section class="card note">
+    <b>重要:</b>
+    本ツールの判定は参考情報です。法的結論を自動確定するものではありません。
+    APIキーをHTML内に保存しないでください。クラウドAPIをブラウザから直接使う場合、キーはブラウザ上に存在します。
+    証拠として利用する場合は原音、作成日時、取得経緯、無編集の元ファイルを別途保全してください。
+    <details>
+      <summary>Ollamaへ接続できない場合</summary>
+      <p>ブラウザからローカルOllamaへ接続するにはCORS許可が必要になる場合があります。
+      Windowsの環境変数に <code>OLLAMA_ORIGINS=*</code> を設定してOllamaを再起動してください。
+      公開ネットワークでは使用せず、ローカルPC内だけで運用してください。</p>
+    </details>
+  </section>
+</main>
+
+<div id="status" class="status">準備完了</div>
+
+<script type="module">
+const $ = id => document.getElementById(id);
+const status = (text, cls="") => {
+  $("status").textContent = text;
+  $("status").className = "status " + cls;
+};
+
+const SYSTEM_PROMPT = `あなたは日本の労働法・ハラスメント法に精通した人事・労務の専門家AIです。
+厚生労働省のパワーハラスメント6類型（身体的攻撃、精神的攻撃、人間関係からの切り離し、
+過大な要求、過小な要求、個の侵害）を基準に、発言内容、文脈、反復性、業務上の必要性、
+優越的関係、証拠価値を客観的に評価してください。
+名誉毀損、侮辱、退職強要に該当し得る事情も区別してください。
+断定できない事項は断定せず、必ずJSONだけで回答してください。
+{
+ "summary":"全体評価",
+ "legal_risk":"高/中/低",
+ "incidents":[{
+   "timestamp":"[00:00]形式。不明なら空文字",
+   "utterance":"問題発言",
+   "speaker":"発言者。不明なら空文字",
+   "category":"精神的攻撃/身体的攻撃/人間関係切離/過大要求/過小要求/個の侵害/名誉毀損/侮辱/退職強要/該当なし",
+   "severity":"高/中/低",
+   "reason":"判断理由",
+   "evidence_value":"証拠価値と理由"
+ }],
+ "recommended_action":"推奨対応"
+}`;
+
+const SAMPLES = {
+  "パワハラ（重度）":[
+    ["上司","今月の数字を見たか。お前のせいで部全体の目標が未達だぞ。"],
+    ["部下","申し訳ございません。精一杯やっておりましたが。"],
+    ["上司","精一杯。笑わせるな。給料泥棒という言葉を知っているか。"],
+    ["上司","お前みたいなやつはチームにいらない。明日から来なくていい。"],
+    ["部下","それは、辞めろということでしょうか。"],
+    ["上司","空気を読め。周りの人間は全員お前を迷惑だと思っている。"],
+    ["上司","次の評価でまたこんな結果だったら降格させてやる。覚えておけ。"]
+  ],
+  "パワハラ（中度・過大要求）":[
+    ["上司","この資料、明日の朝までに全部作り直しておいて。"],
+    ["部下","三百ページありますが、今日中は難しいかと。"],
+    ["上司","できない理由を言うな。やれ。他の人はできている。"],
+    ["上司","終わるまで帰るなよ。責任は自分で取れ。"]
+  ],
+  "名誉毀損・侮辱":[
+    ["上司","あいつは前の会社で不正をやって辞めたらしいぞ。"],
+    ["同僚","本当ですか。"],
+    ["上司","みんなに言っておけ。あんな無能と関わるな。"],
+    ["上司","顔を見ているだけで不愉快だ。存在自体が迷惑だ。"]
+  ],
+  "正常な指導（対照群）":[
+    ["上司","今回の数字について、原因を一緒に整理しましょう。"],
+    ["部下","はい。訪問件数が確保できませんでした。"],
+    ["上司","なるほど。では優先順位の付け方を見直しましょうか。"],
+    ["上司","困ったことがあれば早めに相談してください。サポートします。"]
+  ]
+};
+
+const PROVIDERS = {
+  ollama:{url:"http://127.0.0.1:11434",model:""},
+  lmstudio:{url:"http://localhost:1234/v1",model:"local-model"},
+  gemini:{url:"https://generativelanguage.googleapis.com/v1beta",model:"gemini-2.5-flash"},
+  openai:{url:"https://api.openai.com/v1",model:"gpt-4.1-mini"},
+  claude:{url:"https://api.anthropic.com/v1",model:"claude-sonnet-4-5"}
+};
+
+document.querySelectorAll(".tab").forEach(btn=>{
+  btn.addEventListener("click",()=>{
+    document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+    document.querySelectorAll(".pane").forEach(x=>x.classList.remove("active"));
+    btn.classList.add("active");
+    $(btn.dataset.pane).classList.add("active");
+  });
+});
+
+for (const name of Object.keys(SAMPLES)) {
+  const o=document.createElement("option");o.value=name;o.textContent=name;
+  $("sampleSelect").appendChild(o);
+}
+
+function applyProvider(){
+  const cfg=PROVIDERS[$("provider").value];
+  $("apiUrl").value=cfg.url;
+  $("model").value=cfg.model;
+  $("keyArea").style.opacity=["ollama","lmstudio"].includes($("provider").value) ? ".55":"1";
+}
+$("provider").addEventListener("change",applyProvider);
+
+$("toggleKey").onclick=()=>{
+  $("apiKey").type=$("apiKey").type==="password"?"text":"password";
+};
+$("saveSettings").onclick=()=>{
+  const settings={
+    provider:$("provider").value,
+    model:$("model").value,
+    apiUrl:$("apiUrl").value,
+    whisperModel:$("whisperModel").value
+  };
+  localStorage.setItem("harassmentWebSettings",JSON.stringify(settings));
+  status("設定を保存しました。APIキーは保存していません。","ok");
+};
+try{
+  const s=JSON.parse(localStorage.getItem("harassmentWebSettings")||"null");
+  if(s){
+    $("provider").value=s.provider||"ollama";
+    applyProvider();
+    $("model").value=s.model||"";
+    $("apiUrl").value=s.apiUrl||PROVIDERS[$("provider").value].url;
+    $("whisperModel").value=s.whisperModel||"onnx-community/whisper-base";
+  } else applyProvider();
+}catch{applyProvider();}
+
+$("mediaFile").addEventListener("change",()=>{
+  const f=$("mediaFile").files[0];
+  if(!f)return;
+  $("audioPlayer").src=URL.createObjectURL(f);
+  status(`選択: ${f.name} (${(f.size/1024/1024).toFixed(1)} MB)`);
+});
+
+let asrPipeline=null;
+let asrModelName="";
+async function decodeAudioTo16k(file){
+  const buf=await file.arrayBuffer();
+  const ac=new AudioContext();
+  const decoded=await ac.decodeAudioData(buf.slice(0));
+  const offline=new OfflineAudioContext(1,Math.ceil(decoded.duration*16000),16000);
+  const src=offline.createBufferSource();
+  src.buffer=decoded;src.connect(offline.destination);src.start();
+  const rendered=await offline.startRendering();
+  await ac.close();
+  return rendered.getChannelData(0);
+}
+
+$("transcribeFile").onclick=async()=>{
+  const file=$("mediaFile").files[0];
+  if(!file){alert("音声または動画ファイルを選択してください。");return;}
+  const btn=$("transcribeFile");btn.disabled=true;
+  $("asrProgress").value=2;
+  try{
+    status("ブラウザ内Whisperを準備中…");
+    $("asrStatus").textContent="Transformers.jsを読み込んでいます…";
+    const { pipeline, env } = await import("https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2");
+    env.allowLocalModels=false;
+    const modelName=$("whisperModel").value;
+    if(!asrPipeline || asrModelName!==modelName){
+      $("asrStatus").textContent=`AIモデル ${modelName} を読み込み中。初回は数分かかる場合があります。`;
+      asrPipeline=await pipeline("automatic-speech-recognition",modelName,{
+        dtype:"q8",
+        progress_callback:(p)=>{
+          if(typeof p.progress==="number") $("asrProgress").value=Math.max(2,Math.min(70,p.progress*.7));
+          $("asrStatus").textContent=`モデル準備: ${p.status||""} ${p.file||""}`;
+        }
+      });
+      asrModelName=modelName;
+    }
+    $("asrProgress").value=72;
+    $("asrStatus").textContent="音声を16kHzへ変換中…";
+    const audio=await decodeAudioTo16k(file);
+    $("asrProgress").value=80;
+    $("asrStatus").textContent="音声認識中…";
+    const out=await asrPipeline(audio,{
+      language:"japanese",
+      task:"transcribe",
+      chunk_length_s:30,
+      stride_length_s:5,
+      return_timestamps:true
+    });
+    let text="";
+    if(out.chunks?.length){
+      text=out.chunks.map(c=>{
+        const sec=Math.max(0,Math.floor(c.timestamp?.[0]||0));
+        const m=String(Math.floor(sec/60)).padStart(2,"0");
+        const s=String(sec%60).padStart(2,"0");
+        return `[${m}:${s}] ${String(c.text||"").trim()}`;
+      }).join("\n");
+    }else text=out.text||"";
+    $("transcript").value=text.trim();
+    $("asrProgress").value=100;
+    $("asrStatus").textContent="文字起こし完了";
+    status("文字起こしが完了しました。","ok");
+  }catch(e){
+    console.error(e);
+    $("asrStatus").textContent="失敗: "+e.message;
+    status("文字起こしに失敗しました。","bad");
+    alert("文字起こし失敗:\n"+e.message+"\n\nChrome/Edge最新版で実行し、インターネット接続を確認してください。");
+  }finally{btn.disabled=false;}
+};
+
+let recognition=null;
+$("micStart").onclick=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){alert("このブラウザはWeb Speech APIに対応していません。ChromeまたはEdgeを使用してください。");return;}
+  recognition=new SR();
+  recognition.lang="ja-JP";recognition.continuous=true;recognition.interimResults=true;
+  let finalText=$("transcript").value.trim();
+  recognition.onresult=e=>{
+    let interim="";
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      const t=e.results[i][0].transcript;
+      if(e.results[i].isFinal){
+        const now=new Date();
+        const ts=`[${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}]`;
+        finalText+=(finalText?"\n":"")+`${ts} ${t.trim()}`;
+      }else interim+=t;
+    }
+    $("transcript").value=finalText+(interim?`\n（認識中）${interim}`:"");
+  };
+  recognition.onerror=e=>status("マイク認識エラー: "+e.error,"bad");
+  recognition.onend=()=>{$("micStart").disabled=false;$("micStop").disabled=true;};
+  recognition.start();
+  $("micStart").disabled=true;$("micStop").disabled=false;
+  $("micStatus").textContent="認識中…";
+  status("マイク認識中…");
+};
+$("micStop").onclick=()=>{
+  recognition?.stop();$("micStatus").textContent="停止";
+};
+
+$("insertSample").onclick=()=>{
+  let sec=0;
+  $("transcript").value=SAMPLES[$("sampleSelect").value].map(([sp,t])=>{
+    const line=`[${String(Math.floor(sec/60)).padStart(2,"0")}:${String(sec%60).padStart(2,"0")}] ${sp}: ${t}`;
+    sec+=7;return line;
+  }).join("\n");
+  status("サンプル台本を挿入しました。","ok");
+};
+$("speakSample").onclick=()=>{
+  speechSynthesis.cancel();
+  for(const [sp,text] of SAMPLES[$("sampleSelect").value]){
+    const u=new SpeechSynthesisUtterance(`${sp}。${text}`);
+    u.lang="ja-JP";u.rate=.95;speechSynthesis.speak(u);
+  }
+  status("サンプルを読み上げています。");
+};
+$("stopSpeak").onclick=()=>speechSynthesis.cancel();
+
+
+function setDiag(message){
+  $("diag").textContent = String(message || "");
+}
+async function fetchWithTimeout(url, options={}, timeoutMs=10000){
+  const ctrl = new AbortController();
+  const timer = setTimeout(()=>ctrl.abort(), timeoutMs);
+  try{
+    return await fetch(url,{...options,signal:ctrl.signal,cache:"no-store"});
+  }finally{
+    clearTimeout(timer);
+  }
+}
+function explainFetchError(e, url){
+  const origin = location.origin === "null" ? "file://（ローカルHTML）" : location.origin;
+  return [
+    `接続先: ${url}`,
+    `HTMLの起動元: ${origin}`,
+    `エラー: ${e?.name || "Error"}: ${e?.message || e}`,
+    "",
+    "主な原因:",
+    "1) Ollamaが起動していない",
+    "2) ブラウザのCORS制限で拒否された",
+    "3) URLまたはポートが違う",
+    "",
+    "Ollama用の推奨URL: http://127.0.0.1:11434",
+    "モデル名を手入力しても、CORSが未設定なら解析時にも接続できません。"
+  ].join("\n");
+}
+$("testConnection").onclick=async()=>{
+  const p=$("provider").value;
+  const base=$("apiUrl").value.trim().replace(/\/$/,"");
+  let url=base;
+  if(p==="ollama") url=base+"/api/version";
+  else if(p==="lmstudio"||p==="openai") url=base+"/models";
+  else{
+    setDiag("Gemini・Claudeはモデル検出対象外です。API解析時に接続確認します。");
+    status("このプロバイダは解析時に接続確認します。","warn");
+    return;
+  }
+  try{
+    status("接続テスト中…");
+    const headers={};
+    if(p==="openai" && $("apiKey").value.trim()) headers.Authorization=`Bearer ${$("apiKey").value.trim()}`;
+    const r=await fetchWithTimeout(url,{headers},10000);
+    const body=await r.text();
+    setDiag(`HTTP ${r.status} ${r.statusText}\n${body.slice(0,1500)}`);
+    if(!r.ok) throw new Error(`HTTP ${r.status}: ${body.slice(0,300)}`);
+    status("接続テスト成功。","ok");
+  }catch(e){
+    setDiag(explainFetchError(e,url));
+    status("接続テスト失敗。診断ログを確認してください。","bad");
+  }
+};
+
+$("detectModels").onclick=async()=>{
+  const p=$("provider").value;
+  const base=$("apiUrl").value.trim().replace(/\/$/,"");
+  try{
+    status("モデルを検出中…");
+    $("modelStatus").textContent="問い合わせ中…";
+    let models=[];
+    let url="";
+    if(p==="ollama"){
+      url=base+"/api/tags";
+      const r=await fetchWithTimeout(url,{},15000);
+      const raw=await r.text();
+      if(!r.ok)throw new Error(`HTTP ${r.status}: ${raw.slice(0,500)}`);
+      const data=JSON.parse(raw);
+      models=(data.models||[]).map(x=>x.name||x.model).filter(Boolean);
+    }else if(p==="lmstudio"||p==="openai"){
+      url=base+"/models";
+      const headers=p==="openai"?{Authorization:`Bearer ${$("apiKey").value.trim()}`}:{};
+      const r=await fetchWithTimeout(url,{headers},15000);
+      const raw=await r.text();
+      if(!r.ok)throw new Error(`HTTP ${r.status}: ${raw.slice(0,500)}`);
+      models=(JSON.parse(raw).data||[]).map(x=>x.id).filter(Boolean);
+    }else{
+      $("modelStatus").textContent="このプロバイダはモデル一覧の自動取得に対応していません。モデル名を手入力してください。";
+      setDiag("モデル名を手入力してください。");
+      status("モデル名を手入力してください。","warn");
+      return;
+    }
+    if(!models.length)throw new Error("APIには接続できましたが、モデルが0件でした。");
+    $("model").value=models[0];
+    $("modelStatus").textContent=`検出成功: ${models.length}個`;
+    setDiag(models.join("\n"));
+    status(`${models.length}個のモデルを検出しました。`,"ok");
+  }catch(e){
+    const url = p==="ollama" ? base+"/api/tags" : base+"/models";
+    $("modelStatus").textContent="検出失敗。下の診断ログを確認してください。";
+    setDiag(explainFetchError(e,url));
+    status("モデル検出失敗。診断ログを確認してください。","bad");
+  }
+};
+
+function extractJson(text){
+  let s=String(text||"").trim().replace(/^```json\s*/i,"").replace(/```$/,"").trim();
+  const a=s.indexOf("{"),b=s.lastIndexOf("}");
+  if(a<0||b<a)throw new Error("AI応答にJSONが見つかりません。\n"+s.slice(0,500));
+  return JSON.parse(s.slice(a,b+1));
+}
+
+async function callLLM(transcript){
+  const p=$("provider").value;
+  const model=$("model").value.trim();
+  const key=$("apiKey").value.trim();
+  const base=$("apiUrl").value.replace(/\/$/,"");
+  const user=`以下の文字起こしを解析してください。\n\n${transcript}`;
+  if(!model)throw new Error("モデル名を入力してください。");
+
+  if(p==="ollama"){
+    const r=await fetchWithTimeout(base+"/api/generate",{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({model,prompt:user,system:SYSTEM_PROMPT,stream:false,
+        format:"json",options:{temperature:0}})
+    },120000);
+    if(!r.ok)throw new Error(`Ollama ${r.status}: ${await r.text()}`);
+    return (await r.json()).response;
+  }
+  if(p==="lmstudio"||p==="openai"){
+    if(p==="openai"&&!key)throw new Error("OpenAI APIキーを入力してください。");
+    const r=await fetch(base+"/chat/completions",{
+      method:"POST",
+      headers:{"Content-Type":"application/json",...(p==="openai"?{Authorization:`Bearer ${key}`}:{})},
+      body:JSON.stringify({model,temperature:0,
+        messages:[{role:"system",content:SYSTEM_PROMPT},{role:"user",content:user}],
+        response_format:{type:"json_object"}})
+    });
+    if(!r.ok)throw new Error(`${p} ${r.status}: ${await r.text()}`);
+    return (await r.json()).choices?.[0]?.message?.content;
+  }
+  if(p==="gemini"){
+    if(!key)throw new Error("Gemini APIキーを入力してください。");
+    const r=await fetch(`${base}/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`,{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        systemInstruction:{parts:[{text:SYSTEM_PROMPT}]},
+        contents:[{role:"user",parts:[{text:user}]}],
+        generationConfig:{temperature:0,responseMimeType:"application/json"}
+      })
+    });
+    if(!r.ok)throw new Error(`Gemini ${r.status}: ${await r.text()}`);
+    const j=await r.json();
+    return j.candidates?.[0]?.content?.parts?.map(x=>x.text||"").join("");
+  }
+  if(p==="claude"){
+    if(!key)throw new Error("Claude APIキーを入力してください。");
+    const r=await fetch(base+"/messages",{
+      method:"POST",
+      headers:{
+        "Content-Type":"application/json","x-api-key":key,
+        "anthropic-version":"2023-06-01",
+        "anthropic-dangerous-direct-browser-access":"true"
+      },
+      body:JSON.stringify({model,max_tokens:5000,temperature:0,system:SYSTEM_PROMPT,
+        messages:[{role:"user",content:user}]})
+    });
+    if(!r.ok)throw new Error(`Claude ${r.status}: ${await r.text()}`);
+    const j=await r.json();
+    return j.content?.map(x=>x.text||"").join("");
+  }
+  throw new Error("未対応プロバイダ");
+}
+
+let lastResult=null;
+$("analyze").onclick=async()=>{
+  const tr=$("transcript").value.trim();
+  if(!tr){alert("文字起こしテキストが空です。");return;}
+  $("analyze").disabled=true;
+  try{
+    status("AI解析中…");
+    $("result").textContent="解析中です…";
+    const raw=await callLLM(tr);
+    const data=extractJson(raw);
+    lastResult=data;renderResult(data);
+    status(`解析完了: ${(data.incidents||[]).length}件を検出`,"ok");
+  }catch(e){
+    console.error(e);
+    const p=$("provider").value;
+    const base=$("apiUrl").value.trim().replace(/\/$/,"");
+    const detail = (p==="ollama" || p==="lmstudio")
+      ? explainFetchError(e, p==="ollama" ? base+"/api/generate" : base+"/chat/completions")
+      : `エラー: ${e?.name || "Error"}: ${e?.message || e}\n\nクラウドAPIはブラウザからの直接呼び出しをCORSで拒否する場合があります。`;
+    $("result").textContent="解析失敗:\n"+detail;
+    setDiag(detail);
+    status("AI解析に失敗しました。診断ログを確認してください。","bad");
+  }finally{$("analyze").disabled=false;}
+};
+
+function esc(s){
+  return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+function renderResult(d){
+  const inc=Array.isArray(d.incidents)?d.incidents:[];
+  $("result").innerHTML=`
+    <h3>総合評価</h3>
+    <p>${esc(d.summary)}</p>
+    <p><b>法的リスク:</b> <span class="badge">${esc(d.legal_risk||"不明")}</span></p>
+    <h3>検出された問題発言: ${inc.length}件</h3>
+    ${inc.map((x,i)=>`<div class="incident ${{高:"high",中:"mid",低:"low"}[x.severity]||"low"}">
+      <b>案件 ${i+1}</b>
+      <span class="badge">${esc(x.timestamp)}</span>
+      <span class="badge">${esc(x.severity)}</span>
+      <span class="badge">${esc(x.category)}</span>
+      <p><b>発言者:</b> ${esc(x.speaker||"不明")}</p>
+      <p><b>発言:</b> 「${esc(x.utterance)}」</p>
+      <p><b>判定理由:</b> ${esc(x.reason)}</p>
+      <p><b>証拠価値:</b> ${esc(x.evidence_value)}</p>
+    </div>`).join("")}
+    <h3>推奨対応策</h3><p>${esc(d.recommended_action)}</p>`;
+}
+
+function download(name,text,type="text/plain"){
+  const blob=new Blob([text],{type:`${type};charset=utf-8`});
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+const stamp=()=>new Date().toISOString().replace(/[:.]/g,"-");
+$("saveTranscript").onclick=()=>download(`transcript_${stamp()}.txt`,$("transcript").value);
+$("clearTranscript").onclick=()=>{$("transcript").value="";};
+$("saveReport").onclick=()=>{
+  const txt=`パワハラ検知AIレポート\n生成日時: ${new Date().toLocaleString()}\nモデル: ${$("model").value}\n\n`
+    +$("result").innerText+"\n\n【文字起こし】\n"+$("transcript").value;
+  download(`harassment_report_${stamp()}.txt`,txt);
+};
+$("printReport").onclick=()=>window.print();
+$("copyReport").onclick=async()=>{
+  await navigator.clipboard.writeText($("result").innerText);
+  status("解析結果をコピーしました。","ok");
+};
+</script>
+</body>
+</html>

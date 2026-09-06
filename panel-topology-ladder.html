@@ -1,0 +1,496 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>分電盤トポロジー注記ツール</title>
+<style>
+  :root{
+    --steel:#DEDBD4; --steel-d:#C9C5BC; --ink:#14171A; --ink-2:#4A5158;
+    --panel:#F2F0EC; --line:#B4AFA5;
+    --w-red:#C62828; --w-black:#212121; --w-white:#FAFAFA; --w-green:#2E7D32;
+    --w-blue:#1565C0; --w-yellow:#F9A825;
+    --ok:#2E7D32; --warn:#EF6C00; --bad:#C62828;
+    --mono: ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--steel);color:var(--ink);
+    font-family:"Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
+    -webkit-text-size-adjust:100%}
+  body{padding-bottom:2rem}
+
+  header{background:var(--ink);color:var(--steel);padding:.7rem .9rem;
+    display:flex;align-items:baseline;gap:.7rem;flex-wrap:wrap;
+    border-bottom:4px solid var(--w-yellow)}
+  header h1{font-size:1rem;margin:0;font-weight:700;letter-spacing:.04em}
+  header span{font-size:.72rem;color:var(--steel-d);font-family:var(--mono)}
+
+  .wrap{max-width:1180px;margin:0 auto;padding:.8rem}
+  @media(min-width:900px){ .cols{display:grid;grid-template-columns:1.15fr 1fr;gap:1rem;align-items:start} }
+
+  .card{background:var(--panel);border:1px solid var(--line);margin-bottom:.8rem}
+  .card > h2{margin:0;font-size:.8rem;padding:.5rem .7rem;background:var(--steel-d);
+    border-bottom:1px solid var(--line);font-weight:700}
+  .card .body{padding:.7rem}
+
+  .bar{display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.6rem}
+  button{font:inherit;font-size:.78rem;padding:.42rem .6rem;border:1px solid var(--ink);
+    background:var(--panel);color:var(--ink);cursor:pointer;border-radius:2px}
+  button:hover{background:#fff}
+  button.on{background:var(--ink);color:var(--w-yellow);border-color:var(--ink)}
+  button:focus-visible{outline:3px solid var(--w-yellow);outline-offset:1px}
+  button.mini{font-size:.7rem;padding:.28rem .45rem}
+
+  #stage{position:relative;background:#111;line-height:0;overflow:hidden;touch-action:manipulation}
+  #photo{width:100%;display:block}
+  #ovl{position:absolute;inset:0;width:100%;height:100%}
+  #empty{color:#7c848c;font-size:.8rem;padding:3.2rem 1rem;text-align:center;line-height:1.6}
+
+  .swatches{display:flex;gap:.3rem;flex-wrap:wrap;align-items:center}
+  .sw{width:30px;height:30px;border:2px solid var(--ink);border-radius:50%;cursor:pointer;padding:0}
+  .sw[aria-pressed="true"]{outline:3px solid var(--w-yellow);outline-offset:2px}
+
+  .hint{font-size:.73rem;color:var(--ink-2);line-height:1.65;margin:.4rem 0 0}
+  .hint b{color:var(--ink)}
+
+  table{border-collapse:collapse;width:100%;font-size:.74rem}
+  th,td{border:1px solid var(--line);padding:.3rem .35rem;text-align:left}
+  th{background:var(--steel-d);font-weight:700}
+  td input{width:100%;font:inherit;font-family:var(--mono);font-size:.74rem;
+    border:1px solid var(--line);padding:.22rem;background:#fff;border-radius:2px}
+  td.st{font-family:var(--mono);font-weight:700;white-space:nowrap}
+  .st.ok{color:var(--ok)} .st.warn{color:var(--warn)} .st.bad{color:var(--bad)}
+
+  pre{font-family:var(--mono);font-size:.68rem;line-height:1.45;background:#101317;color:#D7DEE4;
+    padding:.7rem;overflow:auto;margin:0;max-height:400px;border-radius:2px}
+  .tabs{display:flex;gap:.2rem;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .tabs button{border:none;border-bottom:3px solid transparent;background:none;border-radius:0}
+  .tabs button.on{background:none;color:var(--ink);border-bottom-color:var(--w-yellow)}
+  .pane{display:none} .pane.on{display:block}
+
+  .alarm{font-family:var(--mono);font-size:.74rem;padding:.4rem .5rem;border-left:5px solid;
+    background:#fff;margin-bottom:.3rem;line-height:1.5}
+  .alarm.bad{border-color:var(--bad)} .alarm.warn{border-color:var(--warn)}
+  .alarm.ok{border-color:var(--ok)}
+  .lamp{display:inline-block;width:.6rem;height:.6rem;border-radius:50%;margin-right:.4rem;vertical-align:middle}
+</style>
+
+<header>
+  <h1>分電盤トポロジー注記 → ラダー生成 → 故障診断</h1>
+  <span>PANEL-DX / prototype</span>
+</header>
+
+<div class="wrap">
+<div class="cols">
+
+<!-- ============ 左：写真注記 ============ -->
+<div>
+<div class="card">
+  <h2>1. 写真に配線を書き込む</h2>
+  <div class="body">
+    <div class="bar">
+      <button id="btnLoad">写真を読み込む</button>
+      <input type="file" id="file" accept="image/*" hidden>
+      <button id="mNode" class="on">端子を置く</button>
+      <button id="mWire">配線をつなぐ</button>
+      <button id="mDel">削除する</button>
+      <button id="btnDemo" class="mini">デモ構成を入れる</button>
+      <button id="btnClear" class="mini">全消去</button>
+    </div>
+
+    <div class="swatches" id="sws" style="margin-bottom:.6rem">
+      <span style="font-size:.73rem;margin-right:.2rem">線色</span>
+    </div>
+
+    <div id="stage">
+      <img id="photo" hidden alt="">
+      <div id="empty">写真を読み込むと、ここに配線を書き込めます。<br>写真なしでも端子と配線だけ置けます。</div>
+      <svg id="ovl" viewBox="0 0 1000 1000" preserveAspectRatio="none"></svg>
+    </div>
+
+    <p class="hint">
+      <b>端子を置く</b>：写真をタップ → 種別を選ぶ（主幹／分岐／端子台／負荷）。<br>
+      <b>配線をつなぐ</b>：端子を2つ続けてタップ。束の中で見えない区間も、見えている両端をつなげば確定します。<br>
+      <b>削除する</b>：端子または配線をタップ。
+    </p>
+  </div>
+</div>
+
+<div class="card">
+  <h2>2. 認識されたトポロジー</h2>
+  <div class="body"><div id="topo" style="font-size:.75rem;line-height:1.7">まだ何もありません。</div></div>
+</div>
+</div>
+
+<!-- ============ 右：生成物 ============ -->
+<div>
+<div class="card">
+  <h2>3. 生成結果</h2>
+  <div class="body">
+    <div class="tabs">
+      <button data-p="p1" class="on">単線結線図</button>
+      <button data-p="p2">ラダー図</button>
+      <button data-p="p3">ニモニック</button>
+      <button data-p="p4">JSON</button>
+    </div>
+    <div id="p1" class="pane on"><svg id="sld" viewBox="0 0 640 420" style="width:100%;background:#fff;border:1px solid var(--line)"></svg></div>
+    <div id="p2" class="pane"><pre id="ladder">回路がありません。</pre></div>
+    <div id="p3" class="pane"><pre id="mnemo">回路がありません。</pre></div>
+    <div id="p4" class="pane"><pre id="json">{}</pre></div>
+    <div class="bar" style="margin:.6rem 0 0"><button id="btnDl" class="mini">結線図・ラダー・JSONを保存</button></div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>4. 計測値を入れて診断する</h2>
+  <div class="body">
+    <div id="meas">回路がありません。</div>
+    <div class="bar" style="margin:.6rem 0"><button id="btnRun">ラダーを実行する</button><button id="btnFault" class="mini">劣化を模擬する</button></div>
+    <div id="result"></div>
+  </div>
+</div>
+</div>
+
+</div>
+</div>
+
+<script>
+/* ============================================================
+   モデル
+   node: {id,x,y,kind,label,rating}  x,y は 0..1000 の正規化座標
+   wire: {id,a,b,color}
+   ============================================================ */
+const KINDS = {
+  main:   {jp:"主幹",   c:"#212121", r:16},
+  branch: {jp:"分岐",   c:"#1565C0", r:13},
+  term:   {jp:"端子台", c:"#6D4C41", r:10},
+  load:   {jp:"負荷",   c:"#2E7D32", r:13},
+};
+const WIRE_COLORS = [
+  ["赤","#C62828"],["白","#FAFAFA"],["黒","#212121"],
+  ["緑","#2E7D32"],["青","#1565C0"],["黄","#F9A825"]
+];
+
+let nodes=[], wires=[], seq=1;
+let mode="node", wireColor="#C62828", pick=null;
+
+const $ = s=>document.querySelector(s);
+const ovl=$("#ovl"), stage=$("#stage");
+
+/* ---------- 線色パレット ---------- */
+WIRE_COLORS.forEach(([jp,hex],i)=>{
+  const b=document.createElement("button");
+  b.className="sw"; b.style.background=hex; b.title=jp;
+  b.setAttribute("aria-label","線色 "+jp);
+  b.setAttribute("aria-pressed", i===0?"true":"false");
+  b.onclick=()=>{ wireColor=hex;
+    [...$("#sws").querySelectorAll(".sw")].forEach(x=>x.setAttribute("aria-pressed","false"));
+    b.setAttribute("aria-pressed","true"); };
+  $("#sws").appendChild(b);
+});
+
+/* ---------- モード ---------- */
+function setMode(m){
+  mode=m; pick=null;
+  ["mNode","mWire","mDel"].forEach(id=>$("#"+id).classList.remove("on"));
+  $({node:"#mNode",wire:"#mWire",del:"#mDel"}[m]).classList.add("on");
+  draw();
+}
+$("#mNode").onclick=()=>setMode("node");
+$("#mWire").onclick=()=>setMode("wire");
+$("#mDel").onclick=()=>setMode("del");
+
+/* ---------- 写真 ---------- */
+$("#btnLoad").onclick=()=>$("#file").click();
+$("#file").onchange=e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const url=URL.createObjectURL(f);
+  const img=$("#photo"); img.onload=()=>{ img.hidden=false; $("#empty").hidden=true; };
+  img.src=url;
+};
+
+/* ---------- 座標 ---------- */
+function pt(ev){
+  const r=stage.getBoundingClientRect();
+  return { x:(ev.clientX-r.left)/r.width*1000, y:(ev.clientY-r.top)/r.height*1000 };
+}
+function nearNode(p,tol=42){
+  let best=null,bd=1e9;
+  for(const n of nodes){ const d=Math.hypot(n.x-p.x,n.y-p.y); if(d<bd){bd=d;best=n;} }
+  return bd<tol?best:null;
+}
+function nearWire(p,tol=26){
+  let best=null,bd=1e9;
+  for(const w of wires){
+    const a=nodes.find(n=>n.id===w.a), b=nodes.find(n=>n.id===w.b); if(!a||!b) continue;
+    const vx=b.x-a.x, vy=b.y-a.y, L=vx*vx+vy*vy||1;
+    let t=((p.x-a.x)*vx+(p.y-a.y)*vy)/L; t=Math.max(0,Math.min(1,t));
+    const d=Math.hypot(a.x+t*vx-p.x, a.y+t*vy-p.y);
+    if(d<bd){bd=d;best=w;}
+  }
+  return bd<tol?best:null;
+}
+
+/* ---------- 操作 ---------- */
+ovl.addEventListener("click",ev=>{
+  const p=pt(ev);
+  if(mode==="node"){
+    const k=prompt("種別を選ぶ  1=主幹  2=分岐  3=端子台  4=負荷","2");
+    if(!k) return;
+    const kind=({"1":"main","2":"branch","3":"term","4":"load"})[k.trim()];
+    if(!kind) return;
+    let label=prompt("名前（例：電灯1／コンセント／エアコン）", KINDS[kind].jp+seq)||KINDS[kind].jp+seq;
+    let rating=20;
+    if(kind==="branch"||kind==="main"){
+      const r=prompt("定格電流 [A]", kind==="main"?"60":"20"); rating=parseFloat(r)||20;
+    }
+    nodes.push({id:"N"+(seq++),x:p.x,y:p.y,kind,label,rating});
+  }else if(mode==="wire"){
+    const n=nearNode(p); if(!n) return;
+    if(!pick){ pick=n; }
+    else if(pick.id!==n.id){
+      if(!wires.some(w=>(w.a===pick.id&&w.b===n.id)||(w.a===n.id&&w.b===pick.id)))
+        wires.push({id:"W"+(seq++),a:pick.id,b:n.id,color:wireColor});
+      pick=null;
+    } else pick=null;
+  }else{
+    const n=nearNode(p);
+    if(n){ nodes=nodes.filter(x=>x.id!==n.id); wires=wires.filter(w=>w.a!==n.id&&w.b!==n.id); }
+    else { const w=nearWire(p); if(w) wires=wires.filter(x=>x.id!==w.id); }
+  }
+  rebuild();
+});
+
+/* ---------- 描画 ---------- */
+function draw(){
+  let s="";
+  for(const w of wires){
+    const a=nodes.find(n=>n.id===w.a), b=nodes.find(n=>n.id===w.b); if(!a||!b) continue;
+    s+=`<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="#000" stroke-width="9" stroke-opacity=".45" stroke-linecap="round"/>`;
+    s+=`<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="${w.color}" stroke-width="5" stroke-linecap="round"/>`;
+  }
+  for(const n of nodes){
+    const k=KINDS[n.kind];
+    const sel = pick && pick.id===n.id;
+    s+=`<circle cx="${n.x}" cy="${n.y}" r="${k.r+3}" fill="#fff" fill-opacity=".9"/>`;
+    s+=`<circle cx="${n.x}" cy="${n.y}" r="${k.r}" fill="${k.c}" stroke="${sel?'#F9A825':'#fff'}" stroke-width="${sel?5:2}"/>`;
+    s+=`<text x="${n.x+k.r+5}" y="${n.y+5}" font-size="20" fill="#fff" stroke="#000" stroke-width="4" paint-order="stroke" font-family="sans-serif">${esc(n.label)}</text>`;
+  }
+  ovl.innerHTML=s;
+}
+const esc=t=>String(t).replace(/[<>&]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;"}[c]));
+
+/* ---------- 回路抽出：主幹から負荷／分岐までの経路 ---------- */
+function circuits(){
+  const main = nodes.find(n=>n.kind==="main");
+  const adj = {}; nodes.forEach(n=>adj[n.id]=[]);
+  wires.forEach(w=>{ if(adj[w.a]&&adj[w.b]){ adj[w.a].push(w.b); adj[w.b].push(w.a);} });
+  const out=[];
+  const branches = nodes.filter(n=>n.kind==="branch");
+  branches.forEach((b,i)=>{
+    // 分岐から下流の負荷を探す
+    const seen=new Set([b.id]); const stack=[b.id]; const loads=[];
+    while(stack.length){
+      const cur=stack.pop();
+      for(const nx of adj[cur]||[]){
+        if(seen.has(nx)) continue; seen.add(nx);
+        const nn=nodes.find(n=>n.id===nx); if(!nn) continue;
+        if(nn.kind==="branch"||nn.kind==="main") continue;
+        if(nn.kind==="load") loads.push(nn.label);
+        stack.push(nx);
+      }
+    }
+    const fed = main ? reach(adj,main.id,b.id) : false;
+    out.push({ no:i+1, id:b.id, name:b.label, rating:b.rating||20,
+               loads, fed, main: main?main.label:"（主幹未設定）" });
+  });
+  return {main,list:out};
+}
+function reach(adj,from,to){
+  const seen=new Set([from]),st=[from];
+  while(st.length){ const c=st.pop(); if(c===to) return true;
+    for(const n of adj[c]||[]) if(!seen.has(n)){seen.add(n);st.push(n);} }
+  return false;
+}
+
+/* ---------- 単線結線図 ---------- */
+function drawSLD(cs){
+  const L=cs.list;
+  if(!L.length){ $("#sld").innerHTML=`<text x="20" y="40" font-size="15" fill="#666">分岐ブレーカを置くと結線図が出ます</text>`; return; }
+  const W=640, top=46, gap=Math.min(66,(360)/L.length), busY=top+26;
+  let s=`<rect width="${W}" height="${top+gap*L.length+50}" fill="#fff"/>`;
+  s+=`<text x="16" y="24" font-size="13" font-family="sans-serif" fill="#111">単線結線図（自動生成）</text>`;
+  // 主幹
+  s+=`<line x1="30" y1="${busY}" x2="30" y2="${busY+gap*L.length}" stroke="#111" stroke-width="3"/>`;
+  s+=`<rect x="16" y="${busY-30}" width="28" height="26" fill="none" stroke="#111" stroke-width="2"/>`;
+  s+=`<text x="52" y="${busY-12}" font-size="12" font-family="sans-serif">主幹 ${esc(cs.main?cs.main.label:"未設定")} ${cs.main?cs.main.rating+"A":""}</text>`;
+  L.forEach((c,i)=>{
+    const y=busY+gap*i+gap*0.55;
+    s+=`<line x1="30" y1="${y}" x2="150" y2="${y}" stroke="#111" stroke-width="2"/>`;
+    s+=`<rect x="150" y="${y-13}" width="26" height="26" fill="${c.fed?'#fff':'#f2d5d5'}" stroke="#111" stroke-width="2"/>`;
+    s+=`<line x1="176" y1="${y}" x2="300" y2="${y}" stroke="#111" stroke-width="2"/>`;
+    s+=`<circle cx="312" cy="${y}" r="11" fill="none" stroke="#111" stroke-width="2"/>`;
+    s+=`<text x="334" y="${y+5}" font-size="12" font-family="sans-serif">${esc(c.name)}（${c.rating}A）${c.loads.length?" → "+esc(c.loads.join("・")):""}</text>`;
+    s+=`<text x="150" y="${y-18}" font-size="10" font-family="monospace" fill="#555">CB${c.no}／X${c.no-1}</text>`;
+    if(!c.fed) s+=`<text x="182" y="${y+26}" font-size="10" fill="#C62828">主幹まで経路なし</text>`;
+  });
+  $("#sld").setAttribute("viewBox",`0 0 ${W} ${top+gap*L.length+50}`);
+  $("#sld").innerHTML=s;
+}
+
+/* ---------- ラダー生成 ---------- */
+const TH = { ir:10, cr:20 };  // 絶縁 1.0MΩ(=K10 0.1MΩ単位) / 接触抵抗 20mΩ
+function genLadder(cs){
+  const L=cs.list; if(!L.length) return {ld:"回路がありません。",mn:"回路がありません。"};
+  let ld="", mn=[], step=0;
+  const P=(s)=>{ mn.push(String(step).padStart(4,"0")+"  "+s); step++; };
+  ld+="■ I/O 割付\n";
+  ld+="  X0..     分岐ブレーカ補助接点（a接点：投入でON）\n";
+  ld+="  D100+n   絶縁抵抗  [0.1MΩ単位]\n";
+  ld+="  D200+n   負荷電流  [0.1A単位]\n";
+  ld+="  D300+n   端子接触抵抗 [mΩ]\n";
+  ld+="  M0+n トリップ／M20+n 絶縁低下／M40+n 過電流／M60+n 接点劣化\n";
+  ld+="  Y0 重故障ブザー／Y1 軽故障灯／Y2 正常灯\n\n";
+  ld+="■ ラダー\n";
+  L.forEach(c=>{
+    const n=c.no-1, ov=Math.round(c.rating*10*0.9); // 定格の90%で過電流警報
+    ld+=`\n; ── CB${c.no} ${c.name}（${c.rating}A）${c.loads.length?" 負荷:"+c.loads.join("・"):""}\n`;
+    ld+=`     X${n}                                   M${n}\n`;
+    ld+=`|----|/|--------------------------------------( )----|  トリップ検知\n`;
+    ld+=`   ブレーカ                               CB${c.no}トリップ\n`;
+    ld+=`          [<= D${100+n} K${TH.ir}]                     M${20+n}\n`;
+    ld+=`|-------------------------------------------( )----|  絶縁低下(<${(TH.ir/10).toFixed(1)}MΩ)\n`;
+    ld+=`          [>  D${200+n} K${ov}]                        M${40+n}\n`;
+    ld+=`|-------------------------------------------( )----|  過電流(>${(ov/10).toFixed(1)}A)\n`;
+    ld+=`          [>  D${300+n} K${TH.cr}]                        M${60+n}\n`;
+    ld+=`|-------------------------------------------( )----|  接点劣化(>${TH.cr}mΩ)\n`;
+    P(`LDI  X${n}`); P(`OUT  M${n}`);
+    P(`LD<= D${100+n} K${TH.ir}`); P(`OUT  M${20+n}`);
+    P(`LD>  D${200+n} K${ov}`);   P(`OUT  M${40+n}`);
+    P(`LD>  D${300+n} K${TH.cr}`); P(`OUT  M${60+n}`);
+  });
+  ld+=`\n; ── 総合警報\n`;
+  ld+=`|--[M0]--+--[M1]-- ... --[M${L.length-1}]--+---( Y0 )---|  重故障（トリップ／絶縁）\n`;
+  ld+=`|--[M20]-+                                              \n`;
+  ld+=`|--[M40]-+--[M60]--------------------------( Y1 )---|  軽故障（過電流／接点劣化）\n`;
+  ld+=`|--[/Y0]--[/Y1]-----------------------------( Y2 )---|  正常\n`;
+  L.forEach(c=>{const n=c.no-1; P(n===0?`LD   M${n}`:`OR   M${n}`);});
+  L.forEach(c=>{const n=c.no-1; P(`OR   M${20+n}`);}); P("OUT  Y0");
+  L.forEach(c=>{const n=c.no-1; P(n===0?`LD   M${40+n}`:`OR   M${40+n}`);});
+  L.forEach(c=>{const n=c.no-1; P(`OR   M${60+n}`);}); P("OUT  Y1");
+  P("LDI  Y0"); P("ANI  Y1"); P("OUT  Y2"); P("END");
+  return {ld,mn:mn.join("\n")};
+}
+
+/* ---------- 計測入力表 ---------- */
+function buildMeas(cs){
+  const L=cs.list;
+  if(!L.length){ $("#meas").innerHTML="回路がありません。"; return; }
+  let h=`<table><tr><th>No</th><th>回路</th><th>CB<br>投入</th><th>絶縁<br>MΩ</th><th>電流<br>A</th><th>接触<br>mΩ</th></tr>`;
+  L.forEach(c=>{
+    h+=`<tr><td>CB${c.no}</td><td>${esc(c.name)}<br><small>${c.rating}A</small></td>
+      <td><input type="checkbox" data-k="on" data-n="${c.no}" checked></td>
+      <td><input data-k="ir" data-n="${c.no}" value="5.0"></td>
+      <td><input data-k="cur" data-n="${c.no}" value="${(c.rating*0.4).toFixed(1)}"></td>
+      <td><input data-k="cr" data-n="${c.no}" value="5"></td></tr>`;
+  });
+  $("#meas").innerHTML=h+"</table>";
+}
+
+/* ---------- ラダー実行（診断エンジン） ---------- */
+function run(){
+  const cs=circuits(), L=cs.list;
+  if(!L.length){ $("#result").innerHTML=""; return; }
+  const g=(k,n)=>$(`[data-k="${k}"][data-n="${n}"]`);
+  let out="", heavy=false, light=false;
+  L.forEach(c=>{
+    const on=g("on",c.no).checked;
+    const ir=parseFloat(g("ir",c.no).value)||0;
+    const cur=parseFloat(g("cur",c.no).value)||0;
+    const cr=parseFloat(g("cr",c.no).value)||0;
+    const ov=c.rating*0.9;
+    const f=[];
+    if(!on)                f.push(["bad",`M${c.no-1} トリップ：ブレーカが開路`]);
+    if(ir*10 <= TH.ir)     f.push(["bad",`M${c.no+19} 絶縁低下：${ir.toFixed(2)}MΩ（基準 ${(TH.ir/10).toFixed(1)}MΩ）`]);
+    if(cur > ov)           f.push(["warn",`M${c.no+39} 過電流：${cur.toFixed(1)}A（警報 ${ov.toFixed(1)}A）`]);
+    if(cr > TH.cr)         f.push(["warn",`M${c.no+59} 接点劣化：${cr}mΩ（基準 ${TH.cr}mΩ）`]);
+    if(!c.fed)             f.push(["warn",`結線不明：主幹まで経路が引かれていません`]);
+    if(f.some(x=>x[0]==="bad")) heavy=true;
+    if(f.some(x=>x[0]==="warn")) light=true;
+    if(!f.length){
+      out+=`<div class="alarm ok"><span class="lamp" style="background:#2E7D32"></span>CB${c.no} ${esc(c.name)}　正常</div>`;
+    }else{
+      f.forEach(([lv,msg])=>{
+        out+=`<div class="alarm ${lv}"><span class="lamp" style="background:${lv==="bad"?"#C62828":"#EF6C00"}"></span>CB${c.no} ${esc(c.name)}　${esc(msg)}</div>`;
+      });
+    }
+  });
+  const y = heavy ? ["#C62828","Y0 重故障ブザー 動作"]
+        : light ? ["#EF6C00","Y1 軽故障灯 点灯"]
+        : ["#2E7D32","Y2 正常灯 点灯"];
+  $("#result").innerHTML =
+    `<div class="alarm" style="border-color:${y[0]};font-weight:700"><span class="lamp" style="background:${y[0]}"></span>${y[1]}</div>`+out;
+}
+$("#btnRun").onclick=run;
+$("#btnFault").onclick=()=>{
+  const cs=circuits(); if(!cs.list.length) return;
+  const c=cs.list[Math.min(2,cs.list.length-1)];
+  const q=k=>$(`[data-k="${k}"][data-n="${c.no}"]`);
+  q("cr").value="50"; q("ir").value="0.6";
+  run();
+};
+
+/* ---------- タブ ---------- */
+document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll(".tabs button").forEach(x=>x.classList.remove("on"));
+  document.querySelectorAll(".pane").forEach(x=>x.classList.remove("on"));
+  b.classList.add("on"); $("#"+b.dataset.p).classList.add("on");
+});
+
+/* ---------- 再構築 ---------- */
+function rebuild(){
+  draw();
+  const cs=circuits();
+  const t=cs.list;
+  $("#topo").innerHTML = t.length
+    ? `端子 ${nodes.length} 点／配線 ${wires.length} 本／分岐回路 ${t.length}<br>`+
+      t.map(c=>`<div>CB${c.no} <b>${esc(c.name)}</b> ${c.rating}A ${c.fed?"":"<span style='color:#C62828'>（主幹未接続）</span>"} ${c.loads.length?"→ "+esc(c.loads.join("・")):""}</div>`).join("")
+    : "端子を置いて配線をつなぐと、ここに回路が出ます。";
+  drawSLD(cs);
+  const g=genLadder(cs);
+  $("#ladder").textContent=g.ld; $("#mnemo").textContent=g.mn;
+  $("#json").textContent=JSON.stringify({nodes,wires,circuits:cs.list},null,1);
+  buildMeas(cs);
+  $("#result").innerHTML="";
+}
+
+/* ---------- デモ ---------- */
+$("#btnDemo").onclick=()=>{
+  nodes=[];wires=[];seq=1;
+  const main={id:"N1",x:120,y:150,kind:"main",label:"主幹ELB",rating:60};
+  nodes.push(main);
+  const bus={id:"N2",x:420,y:150,kind:"term",label:"母線",rating:0}; nodes.push(bus);
+  wires.push({id:"W1",a:"N1",b:"N2",color:"#212121"});
+  const defs=[["電灯1",20],["電灯2",20],["コンセント1",20],["コンセント2",20],["エアコン",20]];
+  seq=3;
+  defs.forEach((d,i)=>{
+    const b={id:"N"+(seq++),x:420,y:250+i*130,kind:"branch",label:d[0],rating:d[1]};
+    const l={id:"N"+(seq++),x:760,y:250+i*130,kind:"load",label:d[0]+"負荷",rating:0};
+    nodes.push(b,l);
+    wires.push({id:"W"+(seq++),a:"N2",b:b.id,color:"#C62828"});
+    wires.push({id:"W"+(seq++),a:b.id,b:l.id,color:"#FAFAFA"});
+  });
+  rebuild();
+};
+$("#btnClear").onclick=()=>{ nodes=[];wires=[];seq=1;pick=null;rebuild(); };
+
+/* ---------- 保存 ---------- */
+$("#btnDl").onclick=()=>{
+  const cs=circuits(), g=genLadder(cs);
+  const txt="=== 単線結線図(SVG) ===\n"+$("#sld").outerHTML+
+            "\n\n=== ラダー ===\n"+g.ld+"\n\n=== ニモニック ===\n"+g.mn+
+            "\n\n=== JSON ===\n"+JSON.stringify({nodes,wires,circuits:cs.list},null,1);
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([txt],{type:"text/plain"}));
+  a.download="panel-topology.txt"; a.click();
+};
+
+rebuild();
+</script>
